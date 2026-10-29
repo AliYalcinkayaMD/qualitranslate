@@ -38,9 +38,8 @@ validate_settings <- function(value) {
   for (stage in STAGES) {
     item <- jget(stages_in, stage, result$stages[[stage]])
     if (is_obj(item) && identical(item[["provider"]], "copilot")) {
-      # Earlier versions could drive Copilot Chat automatically. That mode was removed
-      # (Microsoft's terms forbid data extraction from its online services); such stages
-      # become copy-and-paste stages with the same chat tool.
+      # Projects saved by pre-release versions may contain "copilot" stages; they become
+      # copy-and-paste stages with the same chat tool.
       item$provider <- "manual"
       item$chat_tool <- if (truthy(item[["chat_tool"]])) item[["chat_tool"]] else "Microsoft Copilot"
       item$model <- ""; item$workspace_id <- ""

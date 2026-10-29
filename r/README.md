@@ -38,10 +38,6 @@ project stays in memory only: export it from the app before you stop.
 - **API**: the Mistral or Anthropic (Claude) API with your own key. Keys stay in memory
   and are never exported.
 
-The automatic Copilot browser mode of QualiTranslate 1.4 is not included, because
-Microsoft's terms for its online services forbid scraping or other data extraction from
-those services. Use Copilot by copy and paste instead. Projects made with 1.4 still open;
-their Copilot stages become copy-and-paste stages and their run records are kept.
 
 ## Data protection
 

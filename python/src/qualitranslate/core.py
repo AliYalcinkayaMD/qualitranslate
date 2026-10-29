@@ -112,9 +112,8 @@ def validate_settings(value):
     for stage in STAGES:
         item = value.get("stages", {}).get(stage, result["stages"][stage])
         if isinstance(item, dict) and item.get("provider") == "copilot":
-            # Earlier versions could drive Copilot Chat automatically. That mode was removed
-            # (Microsoft's terms forbid data extraction from its online services); such stages
-            # become copy-and-paste stages with the same chat tool.
+            # Projects saved by pre-release versions may contain "copilot" stages; they become
+            # copy-and-paste stages with the same chat tool.
             item = {**item, "provider": "manual", "chat_tool": item.get("chat_tool") or "Microsoft Copilot", "model": "", "workspace_id": "",
                     "temperature": None, "top_p": None, "random_seed": None, "effort": ""}
         if not isinstance(item, dict) or item.get("provider") not in PROVIDERS:
@@ -952,8 +951,8 @@ def audit_events(events):
             yield from audit_events(details["prior_audit"])
 
 
-# Earlier versions (1.4) could drive Copilot Chat through its web page. That mode is not part of
-# this version; these lines describe such runs when they appear in an imported project.
+# Describes runs recorded by a pre-release version that drove Copilot Chat through its web page,
+# when they appear in an imported project.
 COPILOT_HISTORY_LINES = [
     "Some runs in this project were made with the Copilot browser mode of an earlier QualiTranslate version, which controlled a dedicated Chrome/Edge window through the visible Copilot Chat page, not a Microsoft model API.",
     "For each of those batches that version loaded a new chat and confirmed on screen that it was empty before sending; each run's chat_isolation field states what was verified, and temporary_chat_notice records Copilot's own on-screen notice.",
