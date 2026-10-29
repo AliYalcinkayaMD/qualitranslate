@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "qualitranslate"
+version = "1.5.0"
+description = "Forward translation, blind back-translation, reconciliation and recorded human review for qualitative interview transcripts"
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Ali Yalcinkaya", email = "aliyalcink@gmail.com" }]
+keywords = ["qualitative research", "translation", "back-translation", "interviews", "cross-language research"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Science/Research",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Topic :: Scientific/Engineering",
+  "Topic :: Text Processing :: Linguistic",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/AliYalcinkayaMD/qualitranslate"
+Source = "https://github.com/AliYalcinkayaMD/qualitranslate"
+Issues = "https://github.com/AliYalcinkayaMD/qualitranslate/issues"
+
+[project.scripts]
+qualitranslate = "qualitranslate.app:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+qualitranslate = ["prompts.json", "copilot_dom.js", "web/*"]

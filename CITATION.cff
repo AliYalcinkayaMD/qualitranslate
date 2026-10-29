@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+message: "If you use QualiTranslate, please cite it as below and report the tools, models and review steps used (the methods record in each download lists them)."
+title: "QualiTranslate: forward translation, blind back-translation, reconciliation and recorded human review for qualitative interview transcripts"
+version: 1.5.0
+type: software
+license: MIT
+repository-code: "https://github.com/AliYalcinkayaMD/qualitranslate"
+url: "https://github.com/AliYalcinkayaMD/qualitranslate"
+authors:
+  - family-names: Yalcinkaya
+    given-names: Ali
+    affiliation: "Interdisciplinary Orthopaedics Research Group, Aalborg University Hospital, Denmark"
+keywords:
+  - qualitative research
+  - translation
+  - back-translation
+  - cross-language research
+  - large language models
+abstract: >-
+  QualiTranslate is a Python and R package for translating qualitative interview
+  transcripts with large language models. It separates forward translation, blind
+  back-translation and reconciliation, requires a recorded human decision for every
+  section, and exports the prompts, replies, audit trail and a draft methods paragraph.

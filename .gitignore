@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+python/dist/
+python/build/
+*.egg-info/
+r/*.tar.gz
+r/*.Rcheck/
+r/..Rcheck/
+.Rhistory
+.RData
+.Rproj.user/
+copilot_diagnostic.json
+.DS_Store

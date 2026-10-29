@@ -1,0 +1,7 @@
+^\.Rbuildignore$
+^cran-comments\.md$
+^.*\.Rproj$
+^\.Rproj\.user$
+^check$
+^.*\.tar\.gz$
+^qualitranslate\.Rcheck$

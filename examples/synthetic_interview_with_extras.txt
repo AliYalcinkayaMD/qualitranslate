@@ -1,0 +1,15 @@
+Study ID: SYNTHETIC SAMPLE ONLY
+Date: Fictional example
+
+Interviewer: Hvornår kan man vurdere, om behandlingen var en succes?
+Participant A: Jeg tror først, man kan sige det, når man er tilbage i sin hverdag.
+Interviewer: Hvad var vigtigst for dig efter operationen?
+Participant A: Det var ikke kun smerterne. Jeg ville også kunne gå en tur uden at planlægge det hele.
+Participant B: Et år efter operationen havde jeg stadig ondt, men jeg var glad for, at jeg havde gjort det.
+Participant A: [pause] Jeg ved ikke helt, hvad "normal" betyder længere.
+
+Appendix: illustrative coding notes
+Field	Example
+Age group	Fictional value
+
+These are researcher notes, not participant speech.

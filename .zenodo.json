@@ -1,0 +1,14 @@
+{
+  "title": "QualiTranslate: forward translation, blind back-translation, reconciliation and recorded human review for qualitative interview transcripts",
+  "upload_type": "software",
+  "description": "<p>QualiTranslate is a Python and R package for translating qualitative interview transcripts with large language models. It separates forward translation, blind back-translation and reconciliation, requires a recorded human decision for every section, and exports the prompts, replies, audit trail and a draft methods paragraph.</p>",
+  "creators": [
+    {
+      "name": "Yalcinkaya, Ali",
+      "affiliation": "Interdisciplinary Orthopaedics Research Group, Aalborg University Hospital, Denmark"
+    }
+  ],
+  "license": "MIT",
+  "keywords": ["qualitative research", "translation", "back-translation", "cross-language research", "large language models"],
+  "access_right": "open"
+}
