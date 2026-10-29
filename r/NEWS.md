@@ -9,8 +9,8 @@
 * Per-stage model settings: temperature or top-p, a Mistral seed, and reasoning effort
   (Claude `output_config.effort`, Mistral `reasoning_effort`). Changing only a later
   stage's settings keeps the earlier stages' results.
-* The Copilot panel reminds users to check that their institution allows their data in
-  Copilot before using it.
+* The Copilot panel reminds users to follow their institution's rules for the data they
+  translate.
 * Local identifier check (warning only) and a draft methods paragraph derived from the
   results currently in the project.
 * Copilot mode isolates a declined section by splitting the batch and retrying a single
