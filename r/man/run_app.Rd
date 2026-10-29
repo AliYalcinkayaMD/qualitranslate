@@ -25,15 +25,12 @@ and exports the results with a methods record.
 \details{
 The function blocks while the app runs, like \code{shiny::runApp()}. Stop it with Escape
 (RStudio) or Control+C. On exit it stops the server, cancels a running translation
-job, closes the Copilot window if the app opened or used one, and forgets any API keys
-entered during the session. The project itself stays only in memory: export it from
-the interface before stopping.
+job and forgets any API keys entered during the session. The project itself stays
+only in memory: export it from the interface before stopping.
 
 Text is sent only to the provider chosen for each stage: none in the manual
-copy-and-paste mode, the Mistral or Anthropic API in API mode, or the user's own
-institutional Microsoft 365 Copilot Chat in Copilot mode. Copilot mode uses a
-dedicated Chrome or Edge profile in \code{tools::R_user_dir("qualitranslate", "data")},
-created only when the user clicks Connect.
+copy-and-paste mode (the user pastes prompt packets into a chat tool of their choice,
+such as an institutional chat service), or the Mistral or Anthropic API in API mode.
 }
 \examples{
 if (interactive()) {

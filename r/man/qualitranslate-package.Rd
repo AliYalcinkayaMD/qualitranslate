@@ -12,6 +12,14 @@ translation), reconciliation that flags discrepancies by category and severity, 
 mandatory named human review, followed by a six-file export with a truthful methods
 record. Start it with \code{\link[=run_app]{run_app()}}; \code{\link[=show_prompts]{show_prompts()}} prints the translation instructions.
 }
+\seealso{
+Useful links:
+\itemize{
+  \item \url{https://github.com/AliYalcinkayaMD/qualitranslate}
+  \item Report bugs at \url{https://github.com/AliYalcinkayaMD/qualitranslate/issues}
+}
+
+}
 \author{
 \strong{Maintainer}: Ali Yalcinkaya \email{aliyalcink@gmail.com} [copyright holder]
 

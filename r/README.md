@@ -32,21 +32,22 @@ project stays in memory only: export it from the app before you stop.
 
 ## Ways to run each stage
 
-- **Manual**: copy a prompt packet into any chat tool and paste the reply back.
+- **Manual**: copy a prompt packet into any chat tool (for example ChatGPT, Claude,
+  Microsoft Copilot or Mistral's Le Chat, including your institution's chat service) and
+  paste the reply back.
 - **API**: the Mistral or Anthropic (Claude) API with your own key. Keys stay in memory
   and are never exported.
-- **Copilot**: your institution's Microsoft 365 Copilot Chat, in a dedicated Chrome or
-  Edge window that you sign in to yourself. The app types into the visible chat page and
-  reads the reply on screen; it never reads cookies, passwords or network traffic and never
-  bypasses sign-in, verification or usage limits. The window's profile is kept in
-  `tools::R_user_dir("qualitranslate", "data")` (created only when you click Connect);
-  "Forget saved Copilot sign-in" removes it.
+
+The automatic Copilot browser mode of QualiTranslate 1.4 is not included, because
+Microsoft's terms for its online services forbid scraping or other data extraction from
+those services. Use Copilot by copy and paste instead. Projects made with 1.4 still open;
+their Copilot stages become copy-and-paste stages and their run records are kept.
 
 ## Data protection
 
 Transcript text leaves your computer only when you run a stage with a provider you chose,
-and then only to that provider: nothing in manual mode, the selected API in API mode, or
-your institution's Copilot Chat in Copilot mode. Back-translation requests never contain
+and then only to that provider: nothing in manual mode (you paste it into the chat tool
+yourself), and the selected API in API mode. Back-translation requests never contain
 the original. The app warns about common identifiers (e-mail addresses, phone-like and
 CPR-like numbers, dates, web addresses) but does not remove them and cannot detect names
 or places, so pseudonymise transcripts before translating them.

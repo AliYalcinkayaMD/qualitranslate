@@ -305,6 +305,89 @@ test_that("provider HTTP errors are reported without the body and retried only f
   expect_error(client$request("mistral", "", "", "/x"), "Add the provider API key", class = "qt_workflow_error")
 })
 
+# ----- Job worker and human entries ------------------------------------------------------------
+
+test_that("job progress names the stage and the batch", {
+  seen <- list(); holder <- new.env()
+  ws <- qt("new_workspace")(fake_client(on_complete = function(task) seen[[length(seen) + 1L]] <<- holder$ws$job))
+  holder$ws <- ws
+  qt("ws_load_text")(ws, "P: one\nP: two", "Fixture"); api_config(ws)
+  start_and_run(ws, "all")
+  expect_true(startsWith(seen[[1]]$message, "Forward translation · batch 1 of 1 · S0001–S0002"))
+  expect_identical(seen[[1]]$batches, 1L)
+  expect_identical(seen[[2]]$stage, "back")
+  expect_identical(ws$job$done, 3L); expect_identical(ws$job$total, 3L)
+  expect_identical(ws$job$message, "Stages complete. Human review is still required.")
+  expect_setequal(names(ws$job), c("running", "message", "error", "error_code", "done", "total", "stage", "batch", "batches"))
+})
+
+test_that("a reply that arrives after Stop is kept and nothing further is sent", {
+  holder <- new.env()
+  ws <- qt("new_workspace")(fake_client(on_complete = function(task) holder$ws$cancel$set()))
+  holder$ws <- ws
+  qt("ws_load_text")(ws, "P: one\nP: two", "Fixture"); api_config(ws, batch_segments = 1L)
+  start_and_run(ws, "all")
+  expect_match(ws$job$error, "Stopped after the current request", fixed = TRUE)
+  expect_identical(ws$job$error_code, "")
+  expect_length(ws$client$requests, 1)
+  expect_false(is.null(ws$project$segments[[1]]$forward)); expect_null(ws$project$segments[[2]]$forward)
+})
+
+test_that("an unexpected error is reported without internal details", {
+  client <- fake_client(); client$complete <- function(task, key) stop("SECRET internal detail")
+  ws <- qt("new_workspace")(client)
+  qt("ws_load_text")(ws, "P: one", "Fixture"); api_config(ws)
+  start_and_run(ws, "forward")
+  expect_identical(ws$job$error, "An unexpected error occurred. Completed batches were retained.")
+  expect_identical(ws$job$message, "Stopped")
+})
+
+test_that("a stale project or revision cannot start an automatic translation", {
+  for (replace_project in c(FALSE, TRUE)) {
+    ws <- pipeline_ws(); api_config(ws)
+    pid <- ws$project$project_id; revision <- ws$project$revision
+    if (replace_project) {
+      qt("ws_load_text")(ws, "P: Different source", "Different project")
+    } else {
+      settings <- ws$project$settings; settings$study_context <- "Changed meanwhile"
+      qt("ws_save_settings")(ws, settings)
+    }
+    expect_error(qt("ws_start_job")(ws, "all", expected_project_id = pid, expected_revision = revision),
+                 "The project changed before the run started. Nothing was sent. Start again to translate the current interview.",
+                 fixed = TRUE, class = "qt_workflow_error")
+    expect_length(ws$client$requests, 0); expect_false(ws$job$running)
+  }
+})
+
+test_that("a person can translate a section the tool did not translate", {
+  ws <- pipeline_ws(); qt("ws_load_text")(ws, "P: one\nP: two\nP: three", "Fixture"); api_config(ws, batch_segments = 1L)
+  expect_error(qt("ws_edit")(ws, "S0002", "back", "x", "n"), "earlier stage", class = "qt_workflow_error")
+  qt("ws_edit")(ws, "S0002", "forward", "Human forward two", "Fictional bilingual reviewer")
+  expect_identical(ws$project$segments[[2]]$forward$run_id, "human_entry")
+  expect_identical(ws$project$segments[[2]]$forward$human_entry$notes, "Fictional bilingual reviewer")
+  expect_identical(ws$project$audit[[length(ws$project$audit)]]$action, "human_translation_entered")
+  start_and_run(ws, "forward")
+  expect_identical(ws$job$error, "")
+  expect_identical(vapply(ws$client$requests, function(r) unlist(r$ids), ""), c("S0001", "S0003"))
+  expect_identical(ws$project$segments[[2]]$forward$text, "Human forward two")
+  start_and_run(ws, "back")
+  qt("ws_edit")(ws, "S0002", "reconcile", "Human proposal two", "Fictional reviewer")
+  expect_true(ws$project$segments[[2]]$reconcile$needs_human)
+  expect_error(qt("ws_edit")(ws, "S0002", "reconcile", "again", ""), "human review", class = "qt_workflow_error")
+  start_and_run(ws, "reconcile")
+  expect_true(all(vapply(ws$project$segments, function(s) !is.null(s$reconcile), logical(1))))
+  expect_match(qt("methods_paragraph")(ws$project), "1 section(s) that the AI tool declined to translate were translated by a person", fixed = TRUE)
+  csv <- qt("raw_to_utf8")(qt("export_csv")(ws$project))
+  expect_match(strsplit(csv, "\r\n", fixed = TRUE)[[1]][1], "human_entered_stages", fixed = TRUE)
+  expect_match(csv, "forward;reconcile", fixed = TRUE)
+  expect_match(qt("raw_to_utf8")(qt("export_html")(ws$project)), "[HUMAN-ENTERED] Human forward two", fixed = TRUE)
+  restored <- qt("new_workspace")(fake_client())
+  qt("ws_import_project")(restored, qt("json_parse")(qt("json_str")(ws$project)))
+  expect_identical(restored$project$segments[[2]]$forward$human_entry$notes, "Fictional bilingual reviewer")
+  expect_identical(restored$project$segments[[2]]$reconcile$run_id, "human_entry")
+  expect_gt(length(qt("export_bundle")(restored$project)), 0)
+})
+
 # ----- HTTP level -----------------------------------------------------------------------------
 
 test_that("the HTTP server enforces its security rules and serves the demo", {

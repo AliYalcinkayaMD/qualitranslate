@@ -111,7 +111,6 @@ py_strip <- function(x) {
   sub(paste0(WS, "+$"), "", x, perl = TRUE)
 }
 py_lstrip <- function(x) sub(paste0("^", WS, "+"), "", x, perl = TRUE)
-py_rstrip <- function(x) sub(paste0(WS, "+$"), "", x, perl = TRUE)
 
 # str.split(sep) that keeps empty pieces, including a trailing one.
 py_split <- function(x, sep) {
@@ -149,7 +148,6 @@ text_value <- function(value, label, maximum = MAX_TEXT, allow_empty = FALSE) {
 }
 
 now_iso <- function() format(Sys.time(), "%Y-%m-%dT%H:%M:%S+00:00", tz = "UTC")
-now_z <- function() format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
 
 qt_clock <- function() proc.time()[["elapsed"]]
 
