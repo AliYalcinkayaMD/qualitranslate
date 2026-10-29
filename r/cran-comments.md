@@ -5,6 +5,7 @@ This is a new submission.
 ## Test environments
 
 * Local: Linux (x86_64), R 4.3.3, `R CMD check --as-cran`.
+* GitHub Actions: ubuntu-latest, macos-latest and windows-latest, current R release.
 
 ## R CMD check results
 
