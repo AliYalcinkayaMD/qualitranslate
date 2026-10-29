@@ -27,7 +27,7 @@ QualiTranslate uses only the Python standard library. Copilot mode also needs Go
 
 1. **Add a transcript.** Paste text or open a `.docx`, `.txt` or `.md` file. The app splits it into sections by speaker turn or paragraph and points out headers, notes and tables, so you can confirm what enters translation. A quick local check warns about possible identifiers (e-mail addresses, phone-like and CPR-like numbers, web addresses, full dates). It never changes your text, and it cannot find names or places.
 2. **Choose a tool.** Each stage can use a different tool:
-   - **Microsoft 365 Copilot (institutional)**, without an API key and without copy and paste. The app opens a separate Chrome window, you sign in yourself, and each batch runs in a new Copilot temporary chat.
+   - **Microsoft 365 Copilot Chat** with a work or school account, without an API key and without copy and paste. Personal Microsoft accounts (the consumer Copilot) are not supported. The app opens a separate Chrome window, you sign in yourself, and each batch runs in a new Copilot temporary chat.
    - **Mistral API** (for example an AAU Mistral workspace key) or the **Claude API**.
    - **Any other AI chat**, by copying a prepared prompt packet and pasting the reply back.
 3. **Translate.** The app runs forward translation, blind back-translation and reconciliation as separate requests. The back-translation request contains only the forward translation: never the original, the study context or the glossary.

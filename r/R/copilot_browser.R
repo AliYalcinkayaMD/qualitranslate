@@ -341,6 +341,10 @@ new_copilot_browser <- function(executable = NULL, start_url = COPILOT_URL, allo
     hosts <- sort(setdiff(hosts, ""), method = "radix")
     joined <- paste(hosts, collapse = ", ")
     self$update(page_host = substr(joined, 1, 120))
+    # Consumer Copilot (personal Microsoft accounts) is a different service and page; it is not supported.
+    if (any(hosts %in% c("copilot.microsoft.com", "copilot.live.com"))) {
+      browser_error("The Copilot window shows the consumer Copilot for personal Microsoft accounts. QualiTranslate works only with Microsoft 365 Copilot Chat and a work or school account. Sign out there and sign in with your work or school account.", "other_page")
+    }
     if (any(grepl("login|microsoftonline|sts\\.|adfs|wayf", hosts, perl = TRUE))) {
       browser_error(paste0("Waiting for you to finish signing in to Microsoft in the Copilot window (", substr(joined, 1, 80), ")."), "sign_in")
     }

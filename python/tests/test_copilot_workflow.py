@@ -157,6 +157,18 @@ class SettingsAndStopTests(unittest.TestCase):
         self.assertEqual(seen[1]['stage'], 'back')
 
 
+class PersonalAccountTests(unittest.TestCase):
+    def test_consumer_copilot_page_gets_a_clear_message(self):
+        import tempfile
+        from qualitranslate.copilot_browser import CopilotBrowser
+        with tempfile.TemporaryDirectory() as tmp:
+            browser = CopilotBrowser(profile_dir=tmp)
+            browser._http = lambda path, *args: [{'type': 'page', 'url': 'https://copilot.microsoft.com/', 'id': 'x'}]
+            with self.assertRaisesRegex(BrowserError, 'personal Microsoft accounts') as ctx:
+                browser._page()
+            self.assertEqual(ctx.exception.code, 'other_page')
+
+
 class TransportHelpersTests(unittest.TestCase):
     def test_zero_width_marks_from_copilot_editor_do_not_count_as_changes(self):
         packet = 'Line one\n\nLine "two" {json}'

@@ -314,3 +314,11 @@ test_that("another process holding the profile lock keeps this session out", {
   err <- tryCatch(qt("new_copilot_browser")(profile_dir = dir)$acquire(dir), error = function(e) e)
   expect_identical(err$code, "in_use")
 })
+
+test_that("the consumer Copilot for personal accounts gets a clear message", {
+  browser <- qt("new_copilot_browser")(profile_dir = tempfile("qt-personal-"))
+  browser$pages <- function() list(list(type = "page", url = "https://copilot.microsoft.com/", id = "x"))
+  err <- tryCatch(browser$page(), error = function(e) e)
+  expect_match(conditionMessage(err), "personal Microsoft accounts")
+  expect_identical(err$code, "other_page")
+})

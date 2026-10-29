@@ -35,6 +35,8 @@ from pathlib import Path
 
 COPILOT_URL = 'https://copilot.cloud.microsoft/chat'
 ALLOWED_HOSTS = {'copilot.cloud.microsoft', 'm365.cloud.microsoft'}
+# Consumer Copilot (personal Microsoft accounts) is a different service and page; it is not supported.
+PERSONAL_COPILOT_HOSTS = {'copilot.microsoft.com', 'copilot.live.com'}
 MAX_FRAME = 12_000_000
 DOM_SCRIPT = (Path(__file__).with_name('copilot_dom.js')).read_text(encoding='utf-8')
 _HELD_PROFILES = set()          # profile folders in use by this process
@@ -441,6 +443,8 @@ class CopilotBrowser:
             raise BrowserError('Opening Copilot in its window…', 'loading')
         hosts = sorted({urllib.parse.urlsplit(p.get('url', '')).hostname or '' for p in pages} - {''})
         self.cached['page_host'] = ', '.join(hosts)[:120]
+        if any(h in PERSONAL_COPILOT_HOSTS for h in hosts):
+            raise BrowserError('The Copilot window shows the consumer Copilot for personal Microsoft accounts. QualiTranslate works only with Microsoft 365 Copilot Chat and a work or school account. Sign out there and sign in with your work or school account.', 'other_page')
         if any('login' in h or 'microsoftonline' in h or 'sts.' in h or 'adfs' in h or 'wayf' in h for h in hosts):
             raise BrowserError('Waiting for you to finish signing in to Microsoft in the Copilot window (' + ', '.join(hosts)[:80] + ').', 'sign_in')
         raise BrowserError('The Copilot window is showing another page (' + ', '.join(hosts)[:80] + '). Finish sign-in there; the app will open Copilot Chat when it can.', 'other_page')

@@ -15,6 +15,7 @@ First release as packages: `qualitranslate` on PyPI (Python) and CRAN (R).
 - The Copilot window lock now uses POSIX record locks.
 - The Copilot page diagnostic moved into the package: `python -m qualitranslate.diagnostic`.
 - The Copilot panel reminds users to follow their institution's rules for the data they translate; interface wording is no longer specific to one university.
+- Copilot mode states that it needs Microsoft 365 Copilot Chat with a work or school account, and says so clearly if the window shows the consumer Copilot of a personal account.
 
 ## 1.4.0
 

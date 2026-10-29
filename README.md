@@ -17,7 +17,7 @@ Both open a local workspace in your browser. A project saved in one can be conti
 
 - Reads `.docx`, `.txt` and `.md` transcripts, splits them into speaker turns or paragraphs, and helps exclude headers, notes and tables before anything is sent.
 - Warns about possible identifiers (e-mail addresses, phone-like and CPR-like numbers, web addresses, full dates) without changing the text.
-- Tools per stage: institutional **Microsoft 365 Copilot** (no API key, no copy and paste; each batch in a new temporary chat), the **Mistral API** (for example an AAU Mistral workspace), the **Claude API**, or **any AI chat** by copy and paste.
+- Tools per stage: **Microsoft 365 Copilot Chat** with a work or school account (no API key, no copy and paste; each batch in a new temporary chat; personal Microsoft accounts are not supported), the **Mistral API** (for example an AAU Mistral workspace), the **Claude API**, or **any AI chat** by copy and paste.
 - Per-stage model, temperature or top-p, reasoning effort and seed where the provider supports them, including a different model for blind back-translation.
 - The blind back-translation request never contains the original text, study context or glossary.
 - Reconciliation flags discrepancies by category (negation, omission, addition, temporality, intensity, uncertainty, agency, terminology, cultural meaning, idioms and metaphors, source ambiguity) and severity, with an optional team lexicon checked locally.
