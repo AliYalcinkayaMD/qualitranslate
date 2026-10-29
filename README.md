@@ -1,5 +1,7 @@
 # QualiTranslate
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23784148.svg)](https://doi.org/10.5281/zenodo.23784148)
+
 QualiTranslate supports translation of qualitative interview transcripts with large language models, keeping the steps that cross-language qualitative research needs:
 
 **forward translation → blind back-translation → reconciliation → recorded human review**
@@ -42,7 +44,9 @@ Text is sent only to the service the user chooses. Use a service approved for th
 
 ## Citation
 
-See `CITATION.cff`. Each GitHub release is archived on Zenodo with a DOI.
+Yalcinkaya A. QualiTranslate [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.23784148
+
+This DOI covers all versions and always points to the latest one. Each release also has its own DOI on Zenodo; cite the version you used, and report the tools, models and review steps (the methods record in each download lists them). See also `CITATION.cff`.
 
 ## Licence
 

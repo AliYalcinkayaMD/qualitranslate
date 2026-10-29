@@ -58,6 +58,10 @@ Changing a later stage's settings keeps the earlier stages: for example, a new b
 
 Back-translation is a diagnostic aid. Separate requests to the same model are not independent human translators, and a new or temporary chat does not prove that a service has no other context. The methods record states what was actually done, including the tools, models and settings used, and does not claim validation or equivalence.
 
+## Citation
+
+Yalcinkaya A. QualiTranslate [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.23784148
+
 ## Licence
 
 MIT. See `LICENSE`.

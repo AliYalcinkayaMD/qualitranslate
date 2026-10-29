@@ -2,6 +2,7 @@ cff-version: 1.2.0
 message: "If you use QualiTranslate, please cite it as below and report the tools, models and review steps used (the methods record in each download lists them)."
 title: "QualiTranslate: forward translation, blind back-translation, reconciliation and recorded human review for qualitative interview transcripts"
 version: 1.5.1
+doi: 10.5281/zenodo.23784148
 type: software
 license: MIT
 repository-code: "https://github.com/AliYalcinkayaMD/qualitranslate"

@@ -50,3 +50,7 @@ or places, so pseudonymise transcripts before translating them.
 
 The app serves only the local address `127.0.0.1`, checks the Host and Origin of every
 request and requires a per-session token.
+
+## Citation
+
+Yalcinkaya A. QualiTranslate [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.23784148
