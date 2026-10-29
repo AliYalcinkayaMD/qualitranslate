@@ -286,8 +286,10 @@ test_that("another process holding the profile lock keeps this session out", {
   skip_on_cran()
   dir <- tempfile("qt-lock-"); dir.create(dir); on.exit(unlink(dir, recursive = TRUE))
   lockfile <- file.path(dir, "QualiTranslate-in-use.lock")
-  rscript <- file.path(R.home("bin"), "Rscript")
-  holder <- processx::process$new(rscript, c("-e", sprintf("l <- filelock::lock('%s'); cat('locked\\n'); Sys.sleep(30)", lockfile)),
+  rscript <- file.path(R.home("bin"), if (.Platform$OS.type == "windows") "Rscript.exe" else "Rscript")
+  # deparse() quotes the path safely (Windows paths contain backslashes).
+  holder <- processx::process$new(rscript, c("-e", sprintf("l <- filelock::lock(%s); cat('locked\\n'); Sys.sleep(30)",
+                                                         deparse(normalizePath(lockfile, winslash = "/", mustWork = FALSE)))),
                                   stdout = "|", stderr = "|")
   on.exit(holder$kill(), add = TRUE)
   expect_true(holder$poll_io(15000)[["output"]] == "ready")
