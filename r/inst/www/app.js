@@ -265,18 +265,18 @@ function updateGuidedTool(){
     } else $('guidedWorkspace').value='';
   }
   const choice=document.querySelector('input[name="guidedTool"]:checked').value;
-  if(choice==='aau')$('guidedManualTool').value='AAU Mistral';
+  if(choice==='aau')$('guidedManualTool').value='Mistral (institutional workspace)';
   if(choice==='copilot')$('guidedManualTool').value='Institutional Copilot';
   $('guidedManualTool').classList.toggle('hidden',choice!=='manual');document.querySelector('label[for="guidedManualTool"]').classList.toggle('hidden',choice!=='manual');
-  $('manualToolHeading').textContent=choice==='aau'?'Use your AAU Mistral workspace':choice==='copilot'?'Use Copilot without an API':'Use the AI chat you already have';
-  $('institutionChatHelp').textContent=choice==='aau'?'Sign in with AAU and select the workspace approved for your study. This option uses chat, without an API key.':choice==='copilot'?'Use your institutional Microsoft account and the chat approved for your study. No API key is needed.':'Choose the external chat interface you will actually use.';
+  $('manualToolHeading').textContent=choice==='aau'?'Use your institution’s Mistral workspace':choice==='copilot'?'Use Copilot without an API':'Use the AI chat you already have';
+  $('institutionChatHelp').textContent=choice==='aau'?'Sign in with your institution and select the workspace approved for your study. This option uses chat, without an API key.':choice==='copilot'?'Use your institutional Microsoft account and the chat approved for your study. No API key is needed.':'Choose the external chat interface you will actually use.';
   $('openInstitutionChat').classList.toggle('hidden',!['aau','copilot'].includes(choice));
   $('openInstitutionChat').href=choice==='aau'?'https://chat.mistral.ai':'https://copilot.cloud.microsoft/chat';
   $('openInstitutionChat').textContent=choice==='aau'?'Open Mistral chat ↗':'Open Copilot chat ↗';
   $('guidedApiPanel').classList.toggle('hidden',['manual','copilot'].includes(provider));
   $('guidedCopilotPanel').classList.toggle('hidden',provider!=='copilot');
   $('guidedManualPanel').classList.toggle('hidden',provider!=='manual');
-  const chatName=choice==='copilot'?'Copilot':choice==='aau'?'AAU Mistral':'your AI chat';
+  const chatName=choice==='copilot'?'Copilot':choice==='aau'?'Mistral':'your AI chat';
   $('chatSetupSteps').textContent='1. Copy instructions + interview text. 2. Paste into '+chatName+' and send. 3. Paste its full reply back here. No separate file upload is needed.';
   $('guidedContinue').textContent=provider==='copilot'?(state.copilot?.connecting?'Waiting for Copilot sign-in…':'Connect & translate with Copilot →'):provider==='manual'?'Continue with '+chatName+' →':'Continue to translation →';
   $('guidedContinue').disabled=state.job.running||(provider==='copilot'&&(state.copilot?.connecting||copilotStarting));
@@ -300,7 +300,7 @@ function syncGuidedFromSettings(){
   const c=state.project.settings.stages.forward;
   if(!state.project.run_count&&c.provider==='manual'&&!c.chat_tool)return;
   const savedTool=c.chat_tool||manualLabel;
-  const choice=c.provider==='manual'?(savedTool.includes('AAU Mistral')?'aau':'manual'):c.provider;
+  const choice=c.provider==='manual'?(/Mistral/.test(savedTool)?'aau':'manual'):c.provider;
   document.querySelector('input[name="guidedTool"][value="'+choice+'"]').checked=true;
   if(c.chat_tool)$('guidedManualTool').value=c.chat_tool;
   $('guidedManualModel').value=c.chat_model||'';
@@ -309,7 +309,7 @@ function syncGuidedFromSettings(){
 function activeChat(){
   const c=state.project.settings.stages[activeStage],tool=c.chat_tool||manualLabel;
   if(tool.includes('Copilot'))return {name:'Copilot',url:'https://copilot.cloud.microsoft/chat'};
-  if(tool.includes('Mistral'))return {name:'AAU Mistral',url:'https://chat.mistral.ai'};
+  if(tool.includes('Mistral'))return {name:'Mistral',url:'https://chat.mistral.ai'};
   if(tool.includes('Claude'))return {name:'Claude',url:'https://claude.ai'};
   return {name:'your AI chat',url:''};
 }
@@ -466,7 +466,7 @@ document.querySelectorAll('input[name="guidedTool"]').forEach(el=>el.addEventLis
 $('guidedConnect').addEventListener('click',()=>act(async()=>{
   const provider=selectedProvider();
   const key=$('guidedKey').value.trim();
-  if(!key&&!state.credentials[provider])throw new Error('Paste your '+(provider==='anthropic'?'Claude':'Mistral')+' API key first. You can also use AAU Mistral chat, Copilot, or Other AI chat without a key.');
+  if(!key&&!state.credentials[provider])throw new Error('Paste your '+(provider==='anthropic'?'Claude':'Mistral')+' API key first. You can also use Mistral chat, Copilot, or Other AI chat without a key.');
   const button=$('guidedConnect');button.disabled=true;button.textContent='Connecting…';
   try{
     if(key){await api('key',{provider:provider,key:key});$('guidedKey').value='';}
@@ -567,7 +567,7 @@ function renderCopilotStatus(){
   const signedIn=c.ready||running||(c.open&&!['sign_in','browser'].includes(c.waiting_for)&&phase!=='opening'&&(c.page_host||'').includes('cloud.microsoft'));
   const steps=[
     ['WINDOW',c.open?'Copilot window open':'Opens a separate Chrome window',c.open||running?'done':waiting?'active':''],
-    ['SIGN-IN',signedIn?'Signed in to Copilot':c.waiting_for==='sign_in'?'Sign in now in the Copilot window':'Your AAU Microsoft account',signedIn?'done':(c.open&&waiting)?'active':''],
+    ['SIGN-IN',signedIn?'Signed in to Copilot':c.waiting_for==='sign_in'?'Sign in now in the Copilot window':'Your work or school Microsoft account',signedIn?'done':(c.open&&waiting)?'active':''],
     ['MESSAGE BOX',c.ready||running?'Found · ready':'Checked automatically',c.ready||running?'done':(signedIn&&waiting)?'active':''],
     ['TRANSLATING',running?(state.job.message||'Running'):complete()?'All three stages done':'Starts automatically',running?'active':complete()?'done':'']];
   if(failed){const i=steps.findIndex(x=>x[2]!=='done');if(i>=0)steps[i][2]='blocked';}

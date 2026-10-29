@@ -14,6 +14,7 @@ First release as packages: `qualitranslate` on PyPI (Python) and CRAN (R).
 - Prompts 1.2.0: keep timestamps and transcription markers, keep fillers and hesitations, and a new reconciliation category `idiom_metaphor`.
 - The Copilot window lock now uses POSIX record locks.
 - The Copilot page diagnostic moved into the package: `python -m qualitranslate.diagnostic`.
+- The Copilot panel reminds users to check that their institution allows their data in Copilot; interface wording is no longer specific to one university.
 
 ## 1.4.0
 
