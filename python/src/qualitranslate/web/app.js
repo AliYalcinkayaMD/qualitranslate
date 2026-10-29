@@ -265,11 +265,11 @@ function updateGuidedTool(){
     } else $('guidedWorkspace').value='';
   }
   const choice=document.querySelector('input[name="guidedTool"]:checked').value;
-  if(choice==='aau')$('guidedManualTool').value='Mistral (institutional workspace)';
+  if(choice==='aau')$('guidedManualTool').value='Mistral chat';
   if(choice==='copilot')$('guidedManualTool').value='Institutional Copilot';
   $('guidedManualTool').classList.toggle('hidden',choice!=='manual');document.querySelector('label[for="guidedManualTool"]').classList.toggle('hidden',choice!=='manual');
-  $('manualToolHeading').textContent=choice==='aau'?'Use your institution’s Mistral workspace':choice==='copilot'?'Use Copilot without an API':'Use the AI chat you already have';
-  $('institutionChatHelp').textContent=choice==='aau'?'Sign in with your institution and select the workspace approved for your study. This option uses chat, without an API key.':choice==='copilot'?'Use your institutional Microsoft account and the chat approved for your study. No API key is needed.':'Choose the external chat interface you will actually use.';
+  $('manualToolHeading').textContent=choice==='aau'?'Use Mistral chat':choice==='copilot'?'Use Copilot without an API':'Use the AI chat you already have';
+  $('institutionChatHelp').textContent=choice==='aau'?'Sign in to Mistral’s Le Chat with the account you use for this study. This option uses chat, without an API key.':choice==='copilot'?'Use your work or school Microsoft account. No API key is needed.':'Choose the external chat interface you will actually use.';
   $('openInstitutionChat').classList.toggle('hidden',!['aau','copilot'].includes(choice));
   $('openInstitutionChat').href=choice==='aau'?'https://chat.mistral.ai':'https://copilot.cloud.microsoft/chat';
   $('openInstitutionChat').textContent=choice==='aau'?'Open Mistral chat ↗':'Open Copilot chat ↗';
@@ -311,6 +311,7 @@ function activeChat(){
   if(tool.includes('Copilot'))return {name:'Copilot',url:'https://copilot.cloud.microsoft/chat'};
   if(tool.includes('Mistral'))return {name:'Mistral',url:'https://chat.mistral.ai'};
   if(tool.includes('Claude'))return {name:'Claude',url:'https://claude.ai'};
+  if(tool.includes('ChatGPT'))return {name:'ChatGPT',url:'https://chatgpt.com'};
   return {name:'your AI chat',url:''};
 }
 function renderChatGuide(show){
