@@ -24,14 +24,13 @@ from .prompts import PROMPTS, PROMPT_VERSION, CATEGORIES as _PROMPT_CATEGORIES
 from .document_tools import DocumentError, read_document as _read_document, scan_document
 from .quality import severity, terminology_issues
 from .privacy import identifier_scan, identifier_summary
-from .copilot_browser import CopilotBrowser, CopilotConnection, BrowserError
 
 APP_VERSION = "1.5.0"
 STAGES = ("forward", "back", "reconcile")
 STAGE_LABELS = {"forward": "Forward translation", "back": "Blind back-translation", "reconcile": "Reconciliation"}
 MAX_TEXT = 1_500_000
 MAX_SEGMENTS = 4000
-PROVIDERS = {"manual", "mistral", "anthropic", "copilot"}
+PROVIDERS = {"manual", "mistral", "anthropic"}
 # Reasoning effort is a per-model API option. Claude: output_config.effort (Opus 4.5 and later);
 # Mistral: reasoning_effort on models with adjustable reasoning. "" means provider default.
 EFFORT_LEVELS = {"anthropic": ("low", "medium", "high", "xhigh", "max"), "mistral": ("none", "high")}
@@ -94,9 +93,6 @@ def defaults():
         "reporting": {"translation_scope": "Selected interview transcript before analysis", "dialect_context": "", "reviewer_background": "", "decision_summary": ""},
         "stages": {s: {"provider": "manual", "model": "", "workspace_id": "", "temperature": None, "top_p": None, "random_seed": None, "effort": "", "chat_tool": "", "chat_model": ""} for s in STAGES},
         "prompt_additions": {s: "" for s in STAGES},
-        # Copilot browser mode: run each batch in a Copilot "Temporary chat" (not saved to
-        # chat history and, per Microsoft's on-screen notice, does not create memories).
-        "copilot": {"temporary_chat": True},
     }
 
 
@@ -115,14 +111,20 @@ def validate_settings(value):
         result[key] = n
     for stage in STAGES:
         item = value.get("stages", {}).get(stage, result["stages"][stage])
+        if isinstance(item, dict) and item.get("provider") == "copilot":
+            # Earlier versions could drive Copilot Chat automatically. That mode was removed
+            # (Microsoft's terms forbid data extraction from its online services); such stages
+            # become copy-and-paste stages with the same chat tool.
+            item = {**item, "provider": "manual", "chat_tool": item.get("chat_tool") or "Microsoft Copilot", "model": "", "workspace_id": "",
+                    "temperature": None, "top_p": None, "random_seed": None, "effort": ""}
         if not isinstance(item, dict) or item.get("provider") not in PROVIDERS:
             raise WorkflowError("Invalid provider for " + stage)
         result["stages"][stage] = {
             "provider": item["provider"],
             "model": text_value(item.get("model", ""), "model", 200, True),
             "workspace_id": text_value(item.get("workspace_id", ""), "workspace id", 150, True),
-            "chat_tool": text_value(item.get("chat_tool", ""), "Chat tool", 150, True) if item["provider"] in {"manual", "copilot"} else "",
-            "chat_model": text_value(item.get("chat_model", ""), "Chat model", 150, True) if item["provider"] in {"manual", "copilot"} else "",
+            "chat_tool": text_value(item.get("chat_tool", ""), "Chat tool", 150, True) if item["provider"] == "manual" else "",
+            "chat_model": text_value(item.get("chat_model", ""), "Chat model", 150, True) if item["provider"] == "manual" else "",
         }
         config = result["stages"][stage]
         for name in ("temperature", "top_p"):
@@ -143,10 +145,6 @@ def validate_settings(value):
         config["effort"] = effort
         if config["provider"] == "anthropic" and config["random_seed"] is not None:
             raise WorkflowError("The Claude API has no random seed setting. Leave the seed empty for Claude.")
-        if config["provider"] == "copilot":
-            # Copilot does not let other programs set sampling; values (for example in a project
-            # saved by 1.4.0) are dropped rather than recorded as if they had been applied.
-            config.update(temperature=None, top_p=None, random_seed=None)
         result["prompt_additions"][stage] = text_value(value.get("prompt_additions", {}).get(stage, ""), "prompt addition", 5000, True)
     terms = value.get("terminology", [])
     if not isinstance(terms, list) or len(terms) > 300:
@@ -161,10 +159,6 @@ def validate_settings(value):
         result["terminology"].append({"source": text_value(t.get("source"), "Source term", 300), "target": text_value(t.get("target"), "Preferred translation", 300),
                                       "alternatives": [text_value(a, "Alternative term", 300) for a in alternatives],
                                       "notes": text_value(t.get("notes", ""), "Terminology notes", 1500, True), "required": t.get("required", True)})
-    copilot = value.get("copilot", {"temporary_chat": True})
-    if not isinstance(copilot, dict) or type(copilot.get("temporary_chat", True)) is not bool:
-        raise WorkflowError("Invalid Copilot settings.")
-    result["copilot"] = {"temporary_chat": copilot.get("temporary_chat", True)}
     reporting = value.get("reporting", {})
     if not isinstance(reporting, dict):
         raise WorkflowError("Invalid reporting information.")
@@ -446,17 +440,15 @@ class APIClient:
 
 
 class Workspace:
-    def __init__(self, client=None, copilot=None):
+    def __init__(self, client=None):
         self.lock = threading.RLock()
         self.client = client or APIClient()
-        self.copilot = copilot or CopilotBrowser()
-        self.copilot_connection = CopilotConnection(self.copilot)
         self.keys = {}
         self.tasks = {}
         self.inspection = None
         self._identifier_cache = (None, None)
         self.cancel = threading.Event()
-        self.job = {"running": False, "message": "Ready", "error": "", "error_code": "", "done": 0, "total": 0, "stage": "", "batch": 0, "batches": 0, "declined": []}
+        self.job = {"running": False, "message": "Ready", "error": "", "error_code": "", "done": 0, "total": 0, "stage": "", "batch": 0, "batches": 0}
         self.project = self._new_project()
 
     @staticmethod
@@ -491,7 +483,7 @@ class Workspace:
     def snapshot(self):
         with self.lock:
             return {"project": copy.deepcopy(self.project), "job": copy.deepcopy(self.job), "identifier_check": self.identifier_check(),
-                    "credentials": {k: bool(self.keys.get(k)) for k in ("mistral", "anthropic")}, "copilot": self.copilot_connection.summary()}
+                    "credentials": {k: bool(self.keys.get(k)) for k in ("mistral", "anthropic")}}
 
     def set_key(self, provider, key):
         with self.lock:
@@ -511,7 +503,7 @@ class Workspace:
             self.tasks.clear()
             self.inspection = None
             self.project = self._new_project()
-            self.job = {"running": False, "message": "Ready", "error": "", "error_code": "", "done": 0, "total": 0, "stage": "", "batch": 0, "batches": 0, "declined": []}
+            self.job = {"running": False, "message": "Ready", "error": "", "error_code": "", "done": 0, "total": 0, "stage": "", "batch": 0, "batches": 0}
 
     def load_text(self, text, title="Untitled interview", demo=False, split_speakers=True):
         segments = parse_transcript(text, split_speakers=split_speakers)
@@ -521,7 +513,6 @@ class Workspace:
             settings = defaults() if demo else self.project["settings"]
             self.project = self._new_project()
             self.project.update({"segments": segments, "settings": settings, "title": title, "demo": demo})
-            self.job["declined"] = []
             self.tasks.clear()
             self.inspection = None
             self._audit("import_transcript", segments=len(segments), source_sha256=digest([s["source"] for s in segments]), synthetic=demo, split_speakers=split_speakers)
@@ -566,7 +557,7 @@ class Workspace:
                 return
             # Batch size and credentials do not alter completed translations. Any linguistic,
             # model, or prompt change invalidates outputs to prevent mixed, stale provenance.
-            excluded = {"batch_chars", "batch_segments", "max_tokens", "reporting", "copilot", "stages", "prompt_additions"}
+            excluded = {"batch_chars", "batch_segments", "max_tokens", "reporting", "stages", "prompt_additions"}
             shared = {k: v for k, v in settings.items() if k not in excluded} != {k: v for k, v in old.items() if k not in excluded}
             shared = shared or settings["reporting"]["dialect_context"] != old.get("reporting", {}).get("dialect_context", "")
             # A change that only affects a later stage (for example a different back-translation
@@ -651,7 +642,7 @@ class Workspace:
             if stage == "reconcile" and seg.get("reconcile"):
                 raise WorkflowError("Use human review to change a reconciled translation.")
             if stage != "source" and not seg.get(stage):
-                # A section the tool could not translate (for example, Copilot declined it) can be
+                # A section the tool could not translate (for example, a chat tool declined it) can be
                 # given a human translation. It is recorded as human work, not model output.
                 prior = STAGES[STAGES.index(stage) - 1] if stage != "forward" else None
                 if prior and not seg.get(prior):
@@ -675,7 +666,6 @@ class Workspace:
             if stage == "source":
                 seg["source"] = text
                 invalidated = STAGES
-                self.job["declined"] = []
             else:
                 seg[stage]["text"] = text
                 seg[stage]["human_edit"] = {"at": now(), "notes": text_value(notes, "Edit notes", 5000, True)}
@@ -777,7 +767,7 @@ class Workspace:
         with self.lock:
             self._idle()
             if (expected_project_id is not None and expected_project_id!=self.project['project_id']) or (expected_revision is not None and expected_revision!=self.project['revision']):
-                raise WorkflowError('The project changed while Copilot was connecting. Nothing was sent. Connect again to translate the current interview.')
+                raise WorkflowError('The project changed before the run started. Nothing was sent. Start again to translate the current interview.')
             stages = STAGES if stage == "all" else (stage,)
             if not self.project["segments"]:
                 raise WorkflowError("Import a transcript first.")
@@ -786,10 +776,6 @@ class Workspace:
                     config = self.project["settings"]["stages"][s]
                     if config["provider"] == "manual":
                         raise WorkflowError("Configure API providers for these stages, or use the manual prompt workflow.")
-                    if config["provider"] == "copilot":
-                        if not self.copilot_connection.summary().get("ready"):
-                            raise WorkflowError("Open Copilot, sign in yourself, and check the connection before starting.")
-                        continue
                     if not self.keys.get(config["provider"]) or not config["model"].strip():
                         raise WorkflowError("Set an API key and model id for " + s + " first.")
             else:
@@ -798,7 +784,7 @@ class Workspace:
             if stage != "all":
                 self._next_ids(stage)
             self.cancel.clear()
-            self.job = {"running": True, "message": "Starting", "error": "", "error_code": "", "done": 0, "total": 0, "stage": "", "batch": 0, "batches": 0, "declined": []}
+            self.job = {"running": True, "message": "Starting", "error": "", "error_code": "", "done": 0, "total": 0, "stage": "", "batch": 0, "batches": 0}
             thread = threading.Thread(target=self._worker, args=(stages, demo), daemon=True)
             thread.start()
 
@@ -808,63 +794,30 @@ class Workspace:
                 with self.lock:
                     batches = self._next_ids(stage)
                     self.job["total"] += len(batches)
-                queue = [(ids, True) for ids in batches]; number = 0; declined = []
-                while queue:
-                    ids, with_context = queue.pop(0); number += 1
+                for number, ids in enumerate(batches, 1):
                     with self.lock:
                         if self.cancel.is_set():
                             raise WorkflowError("Stopped. Completed batches were retained.")
-                        task = build_task(self.project, stage, ids, include_context=with_context)
-                        planned = number + len(queue)
-                        self.job.update(stage=stage, batch=number, batches=planned)
-                        self.job["message"] = ("Demonstration: " if demo else "") + STAGE_LABELS[stage] + " · batch " + str(number) + " of " + str(planned) + " · " + ids[0] + ("–" + ids[-1] if len(ids) > 1 else "")
+                        task = build_task(self.project, stage, ids)
+                        self.job.update(stage=stage, batch=number, batches=len(batches))
+                        self.job["message"] = ("Demonstration: " if demo else "") + STAGE_LABELS[stage] + " · batch " + str(number) + " of " + str(len(batches)) + " · " + ids[0] + ("–" + ids[-1] if len(ids) > 1 else "")
                         key = self.keys.get(task["configuration"]["provider"], "")
-                        if task["configuration"]["provider"] == "copilot":
-                            self.copilot.temporary_chat = self.project["settings"].get("copilot", {}).get("temporary_chat", True)
-                    try:
-                        if demo:
-                            raw, provenance = self.demo_response(task), {"provider": "synthetic_demo", "model": "deterministic-fixture", "completed_at": now()}
-                        elif task["configuration"]["provider"] == "copilot":
-                            raw, provenance = self.copilot.complete(task, self.cancel)
-                        else:
-                            raw, provenance = self.client.complete(task, key)
-                    except BrowserError as exc:
-                        if exc.code != "declined":
-                            raise
-                        # Copilot declined this batch. Split it to find the section(s) concerned and keep
-                        # translating the rest. Text is never rephrased or disguised to pass a filter.
-                        with self.lock:
-                            self._audit("copilot_declined", stage=stage, segment_ids=ids, context_included=with_context, reply_excerpt=task.get("declined_reply", "")[:500])
-                            if len(ids) > 1:
-                                half = len(ids) // 2
-                                queue[0:0] = [(ids[:half], with_context), (ids[half:], with_context)]
-                                self.job["total"] += 1
-                            elif with_context:
-                                # A neighbouring section sent as context can be what Copilot objected to.
-                                # Retry this one section once without neighbours; its own text is unchanged.
-                                queue[0:0] = [(ids, False)]
-                            else:
-                                declined.append(ids[0])
-                                self.job["declined"].append({"stage": stage, "id": ids[0], "reply": task.get("declined_reply", "")[:300], "project_id": self.project["project_id"]})
-                                self._audit("copilot_section_declined", stage=stage, segment_id=ids[0])
-                                self.job["done"] += 1
-                        continue
+                    if demo:
+                        raw, provenance = self.demo_response(task), {"provider": "synthetic_demo", "model": "deterministic-fixture", "completed_at": now()}
+                    else:
+                        raw, provenance = self.client.complete(task, key)
                     with self.lock:
                         # A reply that already arrived is kept even if Stop was pressed meanwhile.
                         self._apply(task, raw, provenance)
                         self.job["done"] += 1
                         if self.cancel.is_set():
                             raise WorkflowError("Stopped after the current request. Completed batches were retained.")
-                if declined:
-                    raise WorkflowError("Copilot declined to translate " + str(len(declined)) + " section" + ("s" if len(declined) > 1 else "") + " in " + STAGE_LABELS[stage].lower() + ": " + ", ".join(declined) +
-                                        ". All other sections in this stage were completed. Add your own translation for " + ("these sections" if len(declined) > 1 else "this section") +
-                                        " under Translate → Sections that need a human translation, then click Resume to continue.")
             with self.lock:
                 self.job["message"] = "Stages complete. Human review is still required."
         except Exception as exc:
             with self.lock:
-                self.job["error"] = str(exc) if isinstance(exc, (WorkflowError, BrowserError)) else "An unexpected error occurred. Completed batches were retained."
-                self.job["error_code"] = getattr(exc, "code", "") if isinstance(exc, BrowserError) else ""
+                self.job["error"] = str(exc) if isinstance(exc, WorkflowError) else "An unexpected error occurred. Completed batches were retained."
+                self.job["error_code"] = ""
                 self.job["message"] = "Stopped"
         finally:
             with self.lock:
@@ -966,7 +919,6 @@ class Workspace:
                 self.project["source_document"] = clean_document
             self.tasks.clear()
             self.inspection = None
-            self.job["declined"] = []
             self._audit("project_imported", imported_sha256=digest(value), prior_audit=value.get("audit", []))
 
 
@@ -998,6 +950,16 @@ def audit_events(events):
         details = event.get("details")
         if isinstance(details, dict) and isinstance(details.get("prior_audit"), list):
             yield from audit_events(details["prior_audit"])
+
+
+# Earlier versions (1.4) could drive Copilot Chat through its web page. That mode is not part of
+# this version; these lines describe such runs when they appear in an imported project.
+COPILOT_HISTORY_LINES = [
+    "Some runs in this project were made with the Copilot browser mode of an earlier QualiTranslate version, which controlled a dedicated Chrome/Edge window through the visible Copilot Chat page, not a Microsoft model API.",
+    "For each of those batches that version loaded a new chat and confirmed on screen that it was empty before sending; each run's chat_isolation field states what was verified, and temporary_chat_notice records Copilot's own on-screen notice.",
+    "A new or temporary chat does not prove that the service has no other context, retrieval or memory; independence equivalent to separate human translators is not claimed. Copilot does not report its underlying model; only the label shown on its model selector is recorded. Sampling settings were not controlled in Copilot mode.",
+    "The per-request receipt verifies reply correlation, not translation correctness. The exact text placed in Copilot's message box is retained as transport_prompt.",
+]
 
 
 def copilot_refusal_summary(project):
@@ -1056,7 +1018,7 @@ def _tool_description(project, stage):
             chats = (", with each batch in a new temporary chat" if temporary == len(provenance) else ", with each batch in a new chat" +
                      (" (a temporary chat for " + str(temporary) + " of " + str(len(provenance)) + " batches)" if temporary else ""))
         else:
-            chats = ", with each batch in a new " + ("temporary " if project["settings"].get("copilot", {}).get("temporary_chat", True) else "") + "chat"
+            chats = ", with each batch in a new chat"
         return ("Microsoft 365 Copilot Chat under the institution's licence, operated automatically through its web interface" + chats +
                 " (Copilot does not report its underlying model" + ("; its mode selector showed " + " / ".join(repr(x) for x in labels) if labels else "") + ")")
     reported = sorted({_text(p.get("tool_model_reported_by_user")) for p in provenance} - {""})
@@ -1174,11 +1136,9 @@ def methods_record(project):
         "Stage settings: " + json.dumps({st: {k: v for k, v in settings["stages"][st].items() if v not in (None, "")} for st in STAGES}, ensure_ascii=False) + ".",
         "Document selection: " + (str(sum(not b["included"] for b in project["source_document"]["blocks"])) + " blocks excluded by user confirmation; excluded text retained only in project record, not translation prompts." if project.get("source_document") else "No scanner selection record; source entered directly or demonstration."),
         "Forward translation, blind back-translation, and reconciliation are separate operations.",
-        "API calls are stateless. Copilot browser mode (if used) controls a dedicated Chrome/Edge window through the visible Copilot Chat page, not a Microsoft model API.",
-        "For every Copilot batch the app loads a new chat and confirms on screen that it is empty before sending. With 'Use Copilot temporary chats' on (" + ("on" if settings.get("copilot", {}).get("temporary_chat", True) else "off") + " in the current settings), it also switches on Copilot's Temporary chat and confirms it. Each run's chat_isolation field states what was verified, and temporary_chat_notice records Copilot's own on-screen notice.",
-        "A new or temporary chat does not prove that the service has no other context, retrieval or memory; independence equivalent to separate human translators is not claimed. Copilot does not report its underlying model; only the label shown on its model selector is recorded. Sampling settings are not controlled in Copilot mode.",
-        "The per-request receipt verifies reply correlation, not translation correctness. The exact text placed in Copilot's message box is retained as transport_prompt.",
-        copilot_refusal_summary(project),
+        "API calls are stateless; each batch is a separate request.",
+    ] + (COPILOT_HISTORY_LINES if any((r.get("provenance") or {}).get("provider") == "copilot_browser" for r in project.get("runs", []) if isinstance(r, dict)) else []) +
+        ([copilot_refusal_summary(project)] if any(e.get("action") in {"copilot_declined", "copilot_section_declined"} for e in audit_events(project.get("audit", []))) else []) + [
         "Back-translation requests contain only target-language translations and the language pair; no original-source text, source glossary, study context, or translator notes.",
         "In manual mode, this blindness depends on using a fresh conversation without source files/history for every back-translation batch.",
         "Reconciliation compares the source, forward translation and blind back-translation. It remains a draft until a named reviewer records a review.",

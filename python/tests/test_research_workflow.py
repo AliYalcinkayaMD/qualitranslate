@@ -190,11 +190,13 @@ class SettingsAndTerminologyTests(unittest.TestCase):
             with self.subTest(option=option,value=value),self.assertRaises(WorkflowError):validate_settings(s)
         s=defaults();s['stages']['forward'].update(provider='anthropic',random_seed=3)
         with self.assertRaises(WorkflowError):validate_settings(s)
-        for provider,effort in [('anthropic','none'),('mistral','max'),('copilot','high'),('manual','low')]:
+        for provider,effort in [('anthropic','none'),('mistral','max'),('manual','low')]:
             s=defaults();s['stages']['forward'].update(provider=provider,effort=effort)
             with self.subTest(provider=provider,effort=effort),self.assertRaises(WorkflowError):validate_settings(s)
-        s=defaults();s['stages']['forward'].update(provider='copilot',temperature=0.3,random_seed=4)
-        self.assertIsNone(validate_settings(s)['stages']['forward']['temperature'],'Copilot sampling values are dropped, not recorded as applied')
+        # Automatic Copilot mode was removed; older 'copilot' stages become copy-and-paste stages.
+        s=defaults();s['stages']['forward'].update(provider='copilot',temperature=0.3,random_seed=4,effort='high',chat_tool='')
+        converted=validate_settings(s)['stages']['forward']
+        self.assertEqual((converted['provider'],converted['chat_tool'],converted['temperature'],converted['random_seed'],converted['effort']),('manual','Microsoft Copilot',None,None,''))
         s=defaults();s['stages']['forward'].update(provider='mistral',temperature=0.2,top_p=0.8)
         with self.assertRaises(WorkflowError):validate_settings(s)
 

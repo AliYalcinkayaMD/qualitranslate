@@ -13,9 +13,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SHARED = ROOT / "shared"
 TARGETS = {
-    ROOT / "python" / "src" / "qualitranslate": {"prompts.json": "prompts.json", "copilot_dom.js": "copilot_dom.js",
+    ROOT / "python" / "src" / "qualitranslate": {"prompts.json": "prompts.json",
                                                  "web/index.html": "web/index.html", "web/app.js": "web/app.js", "web/style.css": "web/style.css"},
-    ROOT / "r" / "inst": {"prompts.json": "prompts.json", "copilot_dom.js": "copilot_dom.js",
+    ROOT / "r" / "inst": {"prompts.json": "prompts.json",
                           "web/index.html": "www/index.html", "web/app.js": "www/app.js", "web/style.css": "www/style.css"},
 }
 

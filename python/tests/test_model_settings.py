@@ -177,10 +177,35 @@ class RobustnessTests(unittest.TestCase):
         from qualitranslate.core import csv_safe
         self.assertEqual(csv_safe('\t=1'), "'\t=1"); self.assertEqual(csv_safe('  =1'), "'  =1"); self.assertEqual(csv_safe('ok'), 'ok')
 
-    def test_closing_without_copilot_creates_no_profile_folder(self):
-        import tempfile
-        from qualitranslate.copilot_browser import CopilotBrowser
-        with tempfile.TemporaryDirectory() as tmp:
-            target = Path(tmp) / 'never-created'
-            CopilotBrowser(profile_dir=target).close()
-            self.assertFalse(target.exists())
+
+class CopilotRemovalTests(unittest.TestCase):
+    """The automatic Copilot browser mode was removed; old projects must still load."""
+
+    def old_copilot_project(self):
+        ws = Workspace(FakeClient()); ws.load_text('P: one')
+        project = json.loads(json.dumps(ws.project))
+        for config in project['settings']['stages'].values():
+            config.update(provider='copilot', chat_tool='Institutional Copilot')
+        project['settings']['copilot'] = {'temporary_chat': True}
+        project['segments'][0]['forward'] = {'text': 'x', 'notes': [], 'run_id': 'r1'}
+        project['runs'] = [{'id': 'r1', 'stage': 'forward', 'segment_ids': ['S0001'], 'prompt_version': '1.1.0',
+                            'request_configuration': {'provider': 'copilot', 'model': ''},
+                            'provenance': {'provider': 'copilot_browser', 'chat_isolation': 'new_temporary_chat_verified', 'copilot_model_selector_label': 'Auto'}}]
+        return project
+
+    def test_old_copilot_projects_import_as_copy_and_paste(self):
+        restored = Workspace(FakeClient()); restored.import_project(self.old_copilot_project())
+        stages = restored.project['settings']['stages']
+        self.assertTrue(all(c['provider'] == 'manual' and c['chat_tool'] == 'Institutional Copilot' for c in stages.values()))
+        self.assertNotIn('copilot', restored.project['settings'])
+        record = methods_record(restored.project)
+        self.assertIn('Copilot browser mode of an earlier QualiTranslate version', record)
+        self.assertIn('each batch in a new temporary chat', methods_paragraph(restored.project))
+        self.assertTrue(export_bundle(restored.project))
+
+    def test_projects_without_copilot_runs_do_not_mention_it(self):
+        ws = Workspace(FakeClient()); ws.load_text(DEMO_SOURCE, 'demo', demo=True)
+        ws.start_job('all', demo=True); wait_for_job(ws, 5)
+        self.assertNotIn('Copilot', methods_record(ws.project))
+        self.assertNotIn('copilot', ws.snapshot())
+        self.assertNotIn('declined', ws.job)

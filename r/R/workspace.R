@@ -26,7 +26,7 @@ DEMO_CORRECT <- "It was not only the pain. I also wanted to be able to go for a 
 
 new_job <- function(running = FALSE, message = "Ready") {
   list(running = running, message = message, error = "", error_code = "", done = 0L, total = 0L,
-       stage = "", batch = 0L, batches = 0L, declined = list())
+       stage = "", batch = 0L, batches = 0L)
 }
 
 new_project <- function() {
@@ -35,11 +35,9 @@ new_project <- function() {
        revision = 0L, settings = settings_defaults(), segments = list(), runs = list(), audit = list(), demo = FALSE)
 }
 
-new_workspace <- function(client = NULL, copilot = NULL) {
+new_workspace <- function(client = NULL) {
   ws <- new.env(parent = emptyenv())
   ws$client <- client %||% new_api_client()
-  ws$copilot <- copilot %||% new_copilot_browser()
-  ws$copilot_connection <- new_copilot_connection(ws$copilot)
   ws$keys <- list()
   ws$tasks <- list()
   ws$inspection <- NULL
@@ -48,7 +46,6 @@ new_workspace <- function(client = NULL, copilot = NULL) {
   ws$job <- new_job()
   ws$project <- new_project()
   ws$pending_job <- NULL     # a validated job waiting for the main loop
-  ws$deferred <- list()      # actions that must run outside request handlers
   class(ws) <- "qt_workspace"
   ws
 }
@@ -88,8 +85,7 @@ ws_identifier_check <- function(ws) {
 
 ws_snapshot <- function(ws) {
   list(project = ws$project, job = ws$job, identifier_check = ws_identifier_check(ws),
-       credentials = list(mistral = truthy(ws$keys$mistral), anthropic = truthy(ws$keys$anthropic)),
-       copilot = ws$copilot_connection$summary())
+       credentials = list(mistral = truthy(ws$keys$mistral), anthropic = truthy(ws$keys$anthropic)))
 }
 
 ws_set_key <- function(ws, provider, key) {
@@ -116,7 +112,6 @@ ws_load_text <- function(ws, text, title = "Untitled interview", demo = FALSE, s
   project <- new_project()
   project$segments <- segments; project$settings <- settings; project$title <- title; project$demo <- demo
   ws$project <- project
-  ws$job$declined <- list()
   ws$tasks <- list()
   ws$inspection <- NULL
   ws_audit(ws, "import_transcript", list(segments = length(segments),
@@ -168,7 +163,7 @@ ws_save_settings <- function(ws, value) {
   if (json_equal(settings, old)) return(invisible())
   # Batch size and credentials do not alter completed translations. Any linguistic,
   # model, or prompt change invalidates outputs to prevent mixed, stale provenance.
-  excluded <- c("batch_chars", "batch_segments", "max_tokens", "reporting", "copilot", "stages", "prompt_additions")
+  excluded <- c("batch_chars", "batch_segments", "max_tokens", "reporting", "stages", "prompt_additions")
   shared <- !json_equal(settings[setdiff(names(settings), excluded)], old[setdiff(names(old), excluded)])
   shared <- shared || !identical(settings$reporting$dialect_context, oget(old$reporting, "dialect_context", ""))
   # A change that only affects a later stage (for example a different back-translation
@@ -277,7 +272,7 @@ ws_edit <- function(ws, segment_id, stage, text, notes = "") {
   seg <- ws$project$segments[[i]]
   if (stage == "reconcile" && truthy(seg$reconcile)) workflow_error("Use human review to change a reconciled translation.")
   if (stage != "source" && !truthy(seg[[stage]])) {
-    # A section the tool could not translate (for example, Copilot declined it) can be
+    # A section the tool could not translate (for example, a chat tool declined it) can be
     # given a human translation. It is recorded as human work, not model output.
     prior <- if (stage != "forward") STAGES[match(stage, STAGES) - 1L] else NULL
     if (!is.null(prior) && !truthy(seg[[prior]])) workflow_error("Add the earlier stage for this section first.")
@@ -303,7 +298,6 @@ ws_edit <- function(ws, segment_id, stage, text, notes = "") {
   if (stage == "source") {
     seg$source <- text
     invalidated <- STAGES
-    ws$job$declined <- list()
   } else {
     seg[[stage]]$text <- text
     seg[[stage]]$human_edit <- list(at = now_iso(), notes = text_value(notes, "Edit notes", 5000, TRUE))
@@ -444,7 +438,7 @@ ws_start_job <- function(ws, stage, demo = FALSE, expected_project_id = NULL, ex
   ws_idle(ws)
   if ((!is.null(expected_project_id) && !json_equal(expected_project_id, ws$project$project_id)) ||
       (!is.null(expected_revision) && !json_equal(expected_revision, ws$project$revision))) {
-    workflow_error("The project changed while Copilot was connecting. Nothing was sent. Connect again to translate the current interview.")
+    workflow_error("The project changed before the run started. Nothing was sent. Start again to translate the current interview.")
   }
   stages <- if (stage == "all") STAGES else stage
   if (!length(ws$project$segments)) workflow_error("Import a transcript first.")
@@ -453,12 +447,6 @@ ws_start_job <- function(ws, stage, demo = FALSE, expected_project_id = NULL, ex
       config <- ws$project$settings$stages[[s]]
       if (config$provider == "manual") {
         workflow_error("Configure API providers for these stages, or use the manual prompt workflow.")
-      }
-      if (config$provider == "copilot") {
-        if (!isTRUE(ws$copilot_connection$summary()$ready)) {
-          workflow_error("Open Copilot, sign in yourself, and check the connection before starting.")
-        }
-        next
       }
       if (!truthy(ws$keys[[config$provider]]) || !nzchar(py_strip(config$model))) {
         workflow_error(paste0("Set an API key and model id for ", s, " first."))
@@ -484,81 +472,32 @@ ws_run_job <- function(ws) {
     for (stage in stages) {
       batches <- ws_next_ids(ws, stage)
       ws$job$total <- ws$job$total + length(batches)
-      queue <- lapply(batches, function(ids) list(ids = ids, context = TRUE))
-      number <- 0L; declined <- character()
-      while (length(queue)) {
-        item <- queue[[1]]; queue <- queue[-1]; number <- number + 1L
-        ids <- item$ids; with_context <- item$context
+      for (number in seq_along(batches)) {
+        ids <- batches[[number]]
         if (ws$cancel$is_set()) workflow_error("Stopped. Completed batches were retained.")
-        task <- build_task(ws$project, stage, ids, include_context = with_context)
-        planned <- number + length(queue)
-        ws$job$stage <- stage; ws$job$batch <- number; ws$job$batches <- planned
+        task <- build_task(ws$project, stage, ids)
+        ws$job$stage <- stage; ws$job$batch <- number; ws$job$batches <- length(batches)
         ws$job$message <- paste0(if (demo) "Demonstration: " else "", STAGE_LABELS[[stage]], " \u00b7 batch ", number,
-                                 " of ", planned, " \u00b7 ", ids[1],
+                                 " of ", length(batches), " \u00b7 ", ids[1],
                                  if (length(ids) > 1) paste0("\u2013", ids[length(ids)]) else "")
         provider <- task$configuration$provider
         key <- if (provider %in% names(ws$keys)) ws$keys[[provider]] else ""
-        if (provider == "copilot") ws$copilot$temporary_chat <- oget(ws$project$settings$copilot, "temporary_chat", TRUE)
-        # The Copilot transport records what it typed (transport_prompt) and any refusal text
-        # on the task, as the Python version does; the box makes those changes visible here.
-        box <- new.env(parent = emptyenv())
-        box$task <- task
-        outcome <- tryCatch({
-          if (demo) {
-            list(raw = ws_demo_response(ws, task),
-                 provenance = list(provider = "synthetic_demo", model = "deterministic-fixture", completed_at = now_iso()))
-          } else if (provider == "copilot") {
-            ws$copilot$complete(box, ws$cancel)
-          } else {
-            ws$client$complete(task, key)
-          }
-        }, qt_browser_error = function(e) {
-          if (!identical(e$code, "declined")) stop(e)
-          e
-        })
-        task <- box$task
-        if (inherits(outcome, "qt_browser_error")) {
-          # Copilot declined this batch. Split it to find the section(s) concerned and keep
-          # translating the rest. Text is never rephrased or disguised to pass a filter.
-          reply <- task$declined_reply %||% ""
-          ws_audit(ws, "copilot_declined", list(stage = stage, segment_ids = as.list(ids), context_included = with_context,
-                                                reply_excerpt = substr(reply, 1, 500)))
-          if (length(ids) > 1) {
-            half <- length(ids) %/% 2L
-            queue <- c(list(list(ids = ids[seq_len(half)], context = with_context),
-                            list(ids = ids[(half + 1L):length(ids)], context = with_context)), queue)
-            ws$job$total <- ws$job$total + 1L
-          } else if (with_context) {
-            # A neighbouring section sent as context can be what Copilot objected to.
-            # Retry this one section once without neighbours; its own text is unchanged.
-            queue <- c(list(list(ids = ids, context = FALSE)), queue)
-          } else {
-            declined <- c(declined, ids[1])
-            ws$job$declined[[length(ws$job$declined) + 1L]] <- list(
-              stage = stage, id = ids[1], reply = substr(reply, 1, 300), project_id = ws$project$project_id)
-            ws_audit(ws, "copilot_section_declined", list(stage = stage, segment_id = ids[1]))
-            ws$job$done <- ws$job$done + 1L
-          }
-          next
+        outcome <- if (demo) {
+          list(raw = ws_demo_response(ws, task),
+               provenance = list(provider = "synthetic_demo", model = "deterministic-fixture", completed_at = now_iso()))
+        } else {
+          ws$client$complete(task, key)
         }
         # A reply that already arrived is kept even if Stop was pressed meanwhile.
         ws_apply(ws, task, outcome$raw, outcome$provenance)
         ws$job$done <- ws$job$done + 1L
         if (ws$cancel$is_set()) workflow_error("Stopped after the current request. Completed batches were retained.")
       }
-      if (length(declined)) {
-        workflow_error(paste0(
-          "Copilot declined to translate ", length(declined), " section", if (length(declined) > 1) "s" else "",
-          " in ", tolower(STAGE_LABELS[[stage]]), ": ", paste(declined, collapse = ", "),
-          ". All other sections in this stage were completed. Add your own translation for ",
-          if (length(declined) > 1) "these sections" else "this section",
-          " under Translate \u2192 Sections that need a human translation, then click Resume to continue."))
-      }
     }
     ws$job$message <- "Stages complete. Human review is still required."
   }, error = function(e) {
     ws$job$error <- if (is_qt_message_error(e)) conditionMessage(e) else "An unexpected error occurred. Completed batches were retained."
-    ws$job$error_code <- if (inherits(e, "qt_browser_error")) (e$code %||% "") else ""
+    ws$job$error_code <- ""
     ws$job$message <- "Stopped"
   }, finally = {
     ws$job$running <- FALSE
@@ -713,6 +652,5 @@ ws_import_project <- function(ws, value) {
   ws$project <- project
   ws$tasks <- list()
   ws$inspection <- NULL
-  ws$job$declined <- list()
   ws_audit(ws, "project_imported", list(imported_sha256 = digest(value), prior_audit = jget(value, "audit", list())))
 }

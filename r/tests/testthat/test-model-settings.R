@@ -12,7 +12,7 @@ capture_reply <- function(reply) {
 }
 
 option_task <- function(...) {
-  ws <- qt("new_workspace")(fake_client(), scripted_copilot()); qt("ws_load_text")(ws, "P: one")
+  ws <- qt("new_workspace")(fake_client()); qt("ws_load_text")(ws, "P: one")
   settings <- qt("settings_defaults")()
   settings$stages$forward$model <- "m"
   extra <- list(...)
@@ -53,7 +53,7 @@ mistral_all <- function(ws, model = "model-a") {
 }
 
 test_that("changing only the back-translation model keeps forward work", {
-  ws <- qt("new_workspace")(fake_client(), scripted_copilot()); qt("ws_load_text")(ws, "P: one\nP: two")
+  ws <- qt("new_workspace")(fake_client()); qt("ws_load_text")(ws, "P: one\nP: two")
   qt("ws_save_settings")(ws, mistral_all(ws)); ws$keys$mistral <- "k"
   start_and_run(ws, "all")
   expect_true(all(vapply(ws$project$segments, function(s) !is.null(s$reconcile), logical(1))))
@@ -68,7 +68,7 @@ test_that("changing only the back-translation model keeps forward work", {
 })
 
 test_that("an equal value of another JSON number type is not a change", {
-  ws <- qt("new_workspace")(fake_client(), scripted_copilot()); qt("ws_load_text")(ws, "P: one")
+  ws <- qt("new_workspace")(fake_client()); qt("ws_load_text")(ws, "P: one")
   settings <- mistral_all(ws); settings$stages$forward$temperature <- 1
   qt("ws_save_settings")(ws, settings); ws$keys$mistral <- "k"
   start_and_run(ws, "forward")
@@ -80,7 +80,7 @@ test_that("an equal value of another JSON number type is not a change", {
 })
 
 test_that("the paragraph names a different back-translation model", {
-  ws <- qt("new_workspace")(fake_client(), scripted_copilot()); qt("ws_load_text")(ws, "P: one")
+  ws <- qt("new_workspace")(fake_client()); qt("ws_load_text")(ws, "P: one")
   settings <- mistral_all(ws); settings$stages$back$model <- "model-b"; settings$stages$reconcile$effort <- "high"
   qt("ws_save_settings")(ws, settings); ws$keys$mistral <- "k"
   start_and_run(ws, "all")
@@ -103,7 +103,7 @@ test_that("identifier patterns flag common identifiers but not timestamps", {
 })
 
 test_that("the identifier scan is a warning and never changes text", {
-  ws <- qt("new_workspace")(fake_client(), scripted_copilot()); qt("ws_load_text")(ws, "P: call me on 12345678\nP: fine")
+  ws <- qt("new_workspace")(fake_client()); qt("ws_load_text")(ws, "P: call me on 12345678\nP: fine")
   before <- qt("json_str")(ws$project$segments)
   check <- qt("ws_snapshot")(ws)$identifier_check
   expect_identical(check$segments, list(list(id = "S0001", kinds = list("phone"))))
@@ -120,7 +120,7 @@ test_that("identifier phrases are plural aware", {
 })
 
 test_that("the demo paragraph is labelled synthetic", {
-  ws <- qt("new_workspace")(fake_client(), scripted_copilot())
+  ws <- qt("new_workspace")(fake_client())
   qt("ws_load_text")(ws, qt("DEMO_SOURCE"), "demo", demo = TRUE)
   start_and_run(ws, "all", demo = TRUE)
   expect_true(startsWith(qt("methods_paragraph")(ws$project), "[SYNTHETIC DEMONSTRATION"))
@@ -130,7 +130,7 @@ test_that("the demo paragraph is labelled synthetic", {
 # ----- ParagraphAccuracyTests: statements must match the results currently in the project.
 
 api_workspace <- function(text = "P: one\nP: two") {
-  ws <- qt("new_workspace")(fake_client(), scripted_copilot()); qt("ws_load_text")(ws, text)
+  ws <- qt("new_workspace")(fake_client()); qt("ws_load_text")(ws, text)
   ws$keys$mistral <- "k"; ws$keys$anthropic <- "k"
   ws
 }
@@ -155,7 +155,7 @@ test_that("stages not run are not described as done", {
   text <- qt("methods_paragraph")(ws$project)
   expect_match(text, "[Blind back-translation not yet run.]", fixed = TRUE)
   expect_match(text, "[Reconciliation not yet run.]", fixed = TRUE)
-  expect_identical(qt("methods_paragraph")(qt("new_workspace")(fake_client(), scripted_copilot())$project), "[No transcript has been prepared yet.]")
+  expect_identical(qt("methods_paragraph")(qt("new_workspace")(fake_client())$project), "[No transcript has been prepared yet.]")
 })
 
 test_that("batch acceptance is not called review", {
@@ -182,7 +182,7 @@ test_that("mixed temporary chats and odd imported values do not break the paragr
   text <- qt("methods_paragraph")(project)
   expect_match(text, "with each batch in a new chat (Copilot", fixed = TRUE)
   expect_match(text, "prompt version 1.1.0", fixed = TRUE)
-  restored <- qt("new_workspace")(fake_client(), scripted_copilot())
+  restored <- qt("new_workspace")(fake_client())
   qt("ws_import_project")(restored, qt("json_parse")(qt("json_str")(project)))
   expect_gt(length(qt("export_bundle")(restored$project)), 0)
 })
@@ -190,7 +190,7 @@ test_that("mixed temporary chats and odd imported values do not break the paragr
 test_that("a project saved by the Python version imports and exports", {
   path <- test_path("fixtures", "python_project.json")
   skip_if_not(file.exists(path))
-  ws <- qt("new_workspace")(fake_client(), scripted_copilot())
+  ws <- qt("new_workspace")(fake_client())
   qt("ws_import_project")(ws, qt("json_parse")(qt("read_utf8_file")(path)))
   expect_identical(ws$project$segments[[4]]$review$reviewer, "Fictional reviewer")
   expect_match(qt("methods_paragraph")(ws$project), "1 after individual review", fixed = TRUE)

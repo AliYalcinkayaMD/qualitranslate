@@ -17,7 +17,7 @@ Both open a local workspace in your browser. A project saved in one can be conti
 
 - Reads `.docx`, `.txt` and `.md` transcripts, splits them into speaker turns or paragraphs, and helps exclude headers, notes and tables before anything is sent.
 - Warns about possible identifiers (e-mail addresses, phone-like and CPR-like numbers, web addresses, full dates) without changing the text.
-- Tools per stage: **Microsoft 365 Copilot Chat** with a work or school account (no API key, no copy and paste; each batch in a new temporary chat; personal Microsoft accounts are not supported), the **Mistral API** (for example an AAU Mistral workspace), the **Claude API**, or **any AI chat** by copy and paste.
+- Tools per stage: the **Claude API** or the **Mistral API** (automatic, with your own key), or **any AI chat** such as ChatGPT, Claude, Microsoft Copilot or Le Chat by copy and paste.
 - Per-stage model, temperature or top-p, reasoning effort and seed where the provider supports them, including a different model for blind back-translation.
 - The blind back-translation request never contains the original text, study context or glossary.
 - Reconciliation flags discrepancies by category (negation, omission, addition, temporality, intensity, uncertainty, agency, terminology, cultural meaning, idioms and metaphors, source ambiguity) and severity, with an optional team lexicon checked locally.
@@ -27,7 +27,7 @@ Both open a local workspace in your browser. A project saved in one can be conti
 ## Repository layout
 
 ```
-shared/     prompts.json, the Copilot page adapter and the web interface (single source)
+shared/     prompts.json and the web interface (single source)
 python/     the PyPI package (standard library only)
 r/          the CRAN package
 tools/      sync_shared.py (copies shared/ into both packages), api_conformance.py (checks both servers behave the same)

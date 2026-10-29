@@ -88,29 +88,6 @@ qt_server_app <- function(ws, token, port) {
       "/api/demo" = ws_load_text(ws, DEMO_SOURCE, "Synthetic sample \u00b7 treatment success", demo = TRUE),
       "/api/settings" = ws_save_settings(ws, get("settings")),
       "/api/key" = ws_set_key(ws, get("provider"), get("key", "")),
-      "/api/copilot/open" = , "/api/copilot/check" = {
-        ws_idle(ws)
-        return(qt_response(ws$copilot_connection$start()))
-      },
-      "/api/copilot/cancel" = {
-        ws_idle(ws)
-        return(qt_response(ws$copilot_connection$cancel()))
-      },
-      "/api/copilot/close" = , "/api/copilot/forget" = {
-        ws_idle(ws)
-        ws$copilot_connection$cancel()
-        forget <- route == "/api/copilot/forget"
-        # Closing waits for the browser, so it runs in the main loop; the reply follows then.
-        return(promises::promise(function(resolve, reject) {
-          ws$deferred[[length(ws$deferred) + 1L]] <- function() {
-            resolve(tryCatch({
-              ws$copilot$close(forget = forget)
-              ws$copilot_connection$phase <- "idle"
-              qt_response(ws$copilot_connection$summary())
-            }, error = error_response))
-          }
-        }))
-      },
       "/api/models" = {
         provider <- get("provider")
         key <- if (is_str(provider) && provider %in% names(ws$keys)) ws$keys[[provider]] else ""

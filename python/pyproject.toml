@@ -34,4 +34,4 @@ qualitranslate = "qualitranslate.app:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-qualitranslate = ["prompts.json", "copilot_dom.js", "web/*"]
+qualitranslate = ["prompts.json", "web/*"]

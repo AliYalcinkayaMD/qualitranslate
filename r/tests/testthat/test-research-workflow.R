@@ -2,7 +2,7 @@
 # settings and terminology).
 
 completed_demo <- function() {
-  ws <- qt("new_workspace")(fake_client(), scripted_copilot())
+  ws <- qt("new_workspace")(fake_client())
   qt("ws_load_text")(ws, qt("DEMO_SOURCE"), "Synthetic research demo", demo = TRUE)
   start_and_run(ws, "all", demo = TRUE)
   expect_identical(ws$job$error, "")
@@ -10,7 +10,7 @@ completed_demo <- function() {
 }
 
 doc_text <- "Study ID: ADMIN_SECRET_91\nDate: ADMIN_SECRET_92\n\nInterviewer: What mattered?\nParticipant A: Less pain.\nAppendix: CODING_SECRET_93\nCoding interpretation follows."
-new_ws <- function() qt("new_workspace")(fake_client(), scripted_copilot())
+new_ws <- function() qt("new_workspace")(fake_client())
 
 test_that("local detection and confirmed exclusions do not enter prompts", {
   ws <- new_ws()
@@ -236,7 +236,7 @@ test_that("invalid sampling and unsupported controls fail early", {
   }
   s <- qt("settings_defaults")(); s$stages$forward$provider <- "anthropic"; s$stages$forward$random_seed <- 3L
   expect_error(qt("validate_settings")(s), "random seed", class = "qt_workflow_error")
-  for (case in list(c("anthropic", "none"), c("mistral", "max"), c("copilot", "high"), c("manual", "low"))) {
+  for (case in list(c("anthropic", "none"), c("mistral", "max"), c("manual", "low"))) {
     s <- qt("settings_defaults")(); s$stages$forward$provider <- case[1]; s$stages$forward$effort <- case[2]
     expect_error(qt("validate_settings")(s), "Reasoning effort", class = "qt_workflow_error")
   }

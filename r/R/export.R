@@ -42,6 +42,27 @@ audit_events <- function(events) {
   out
 }
 
+# Earlier versions (1.4) could drive Copilot Chat through its web page. That mode is not part of
+# this version; these lines describe such runs when they appear in an imported project.
+COPILOT_HISTORY_LINES <- c(
+  "Some runs in this project were made with the Copilot browser mode of an earlier QualiTranslate version, which controlled a dedicated Chrome/Edge window through the visible Copilot Chat page, not a Microsoft model API.",
+  "For each of those batches that version loaded a new chat and confirmed on screen that it was empty before sending; each run's chat_isolation field states what was verified, and temporary_chat_notice records Copilot's own on-screen notice.",
+  "A new or temporary chat does not prove that the service has no other context, retrieval or memory; independence equivalent to separate human translators is not claimed. Copilot does not report its underlying model; only the label shown on its model selector is recorded. Sampling settings were not controlled in Copilot mode.",
+  "The per-request receipt verifies reply correlation, not translation correctness. The exact text placed in Copilot's message box is retained as transport_prompt.")
+
+has_copilot_runs <- function(project) {
+  any(vapply(project$runs %||% list(), function(r) {
+    is_obj(r) && identical(oget(oget(r, "provenance"), "provider"), "copilot_browser")
+  }, logical(1)))
+}
+
+has_copilot_refusals <- function(project) {
+  any(vapply(audit_events(project$audit), function(e) {
+    action <- oget(e, "action")
+    is_str(action) && action %in% c("copilot_declined", "copilot_section_declined")
+  }, logical(1)))
+}
+
 copilot_refusal_summary <- function(project) {
   events <- audit_events(project$audit)
   actions <- vapply(events, function(e) {
@@ -142,8 +163,7 @@ tool_description <- function(project, stage) {
         paste0(", with each batch in a new chat",
                if (temporary) paste0(" (a temporary chat for ", temporary, " of ", length(provenance), " batches)") else "")
     } else {
-      chats <- paste0(", with each batch in a new ",
-                      if (truthy(oget(project$settings$copilot, "temporary_chat", TRUE))) "temporary " else "", "chat")
+      chats <- ", with each batch in a new chat"
     }
     return(paste0("Microsoft 365 Copilot Chat under the institution's licence, operated automatically through its web interface", chats,
                   " (Copilot does not report its underlying model",
@@ -292,7 +312,6 @@ methods_record <- function(project) {
     out <- cfg[keep]
     if (!length(out)) empty_obj() else out
   })
-  temporary <- truthy(oget(settings$copilot, "temporary_chat", TRUE))
   document <- if (!is.null(project$source_document)) {
     excluded <- sum(!vapply(project$source_document$blocks, function(b) isTRUE(b$included), logical(1)))
     paste0(excluded, " blocks excluded by user confirmation; excluded text retained only in project record, not translation prompts.")
@@ -318,13 +337,9 @@ methods_record <- function(project) {
     paste0("Stage settings: ", py_dumps(stage_settings), "."),
     paste0("Document selection: ", document),
     "Forward translation, blind back-translation, and reconciliation are separate operations.",
-    "API calls are stateless. Copilot browser mode (if used) controls a dedicated Chrome/Edge window through the visible Copilot Chat page, not a Microsoft model API.",
-    paste0("For every Copilot batch the app loads a new chat and confirms on screen that it is empty before sending. With 'Use Copilot temporary chats' on (",
-           if (temporary) "on" else "off",
-           " in the current settings), it also switches on Copilot's Temporary chat and confirms it. Each run's chat_isolation field states what was verified, and temporary_chat_notice records Copilot's own on-screen notice."),
-    "A new or temporary chat does not prove that the service has no other context, retrieval or memory; independence equivalent to separate human translators is not claimed. Copilot does not report its underlying model; only the label shown on its model selector is recorded. Sampling settings are not controlled in Copilot mode.",
-    "The per-request receipt verifies reply correlation, not translation correctness. The exact text placed in Copilot's message box is retained as transport_prompt.",
-    copilot_refusal_summary(project),
+    "API calls are stateless; each batch is a separate request.",
+    if (has_copilot_runs(project)) COPILOT_HISTORY_LINES,
+    if (has_copilot_refusals(project)) copilot_refusal_summary(project),
     "Back-translation requests contain only target-language translations and the language pair; no original-source text, source glossary, study context, or translator notes.",
     "In manual mode, this blindness depends on using a fresh conversation without source files/history for every back-translation batch.",
     "Reconciliation compares the source, forward translation and blind back-translation. It remains a draft until a named reviewer records a review.",

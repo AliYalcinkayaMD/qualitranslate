@@ -27,8 +27,6 @@ jobs:
         working-directory: python/tests
         env:
           PYTHONPATH: ../src
-          # Runs the Copilot page-fixture tests in headless Chrome on Linux (skipped elsewhere).
-          QT_TEST_CHROME: ${{ runner.os == 'Linux' && '/usr/bin/google-chrome' || '' }}
         run: python -m unittest discover -s . -v
       - name: Build and check the distribution
         working-directory: python

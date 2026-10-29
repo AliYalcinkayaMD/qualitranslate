@@ -1,11 +1,10 @@
 # Cooperative event loop.
 #
 # R is single-threaded. The web server (httpuv) only answers requests while R runs its
-# event loop, so every long wait in the app (a translation job, the Copilot sign-in watcher,
-# each wait inside the Copilot transport, API requests) goes through qt_wait(), which keeps
-# serving requests and driving the asynchronous curl transfers in small slices. The browser
-# interface therefore keeps polling /api/state once a second, and /api/stop and
-# /api/copilot/cancel take effect during a multi-minute run.
+# event loop, so every long wait in the app (a translation job and its API requests) goes
+# through qt_wait(), which keeps serving requests and driving the asynchronous curl
+# transfers in small slices. The browser interface therefore keeps polling /api/state once
+# a second, and /api/stop takes effect during a multi-minute run.
 #
 # Request handlers never wait: anything slow is queued and picked up by the main loop
 # (qt_loop_once) outside any httpuv/later callback. qt_wait() refuses to run inside a
@@ -51,20 +50,7 @@ qt_loop_once <- function(ws, timeout = 0.1) {
     ws_run_job(ws)
     return(invisible())
   }
-  if (length(ws$deferred)) {
-    action <- ws$deferred[[1]]
-    ws$deferred <- ws$deferred[-1]
-    action()
-    return(invisible())
-  }
-  conn <- ws$copilot_connection
-  if (isTRUE(conn$due())) {
-    conn$tick()
-    return(invisible())
-  }
-  wait <- timeout
-  if (isTRUE(conn$active)) wait <- max(0.001, min(wait, conn$next_at - qt_clock()))
-  qt_wait(wait)
+  qt_wait(timeout)
   invisible()
 }
 
@@ -73,14 +59,4 @@ qt_loop_once <- function(ws, timeout = 0.1) {
 qt_fetch_async <- function(url, handle, done, fail) {
   curl::curl_fetch_multi(url, done = done, fail = fail, pool = qt_pool(), handle = handle)
   invisible()
-}
-
-# Wait (cooperatively) for an asynchronous request.
-qt_fetch_wait <- function(url, handle) {
-  outcome <- NULL
-  qt_fetch_async(url, handle,
-                 done = function(res) outcome <<- list(ok = TRUE, res = res),
-                 fail = function(msg) outcome <<- list(ok = FALSE, msg = msg))
-  while (is.null(outcome)) qt_wait(0.005)
-  outcome
 }

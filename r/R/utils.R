@@ -6,17 +6,16 @@ STAGE_LABELS <- c(forward = "Forward translation", back = "Blind back-translatio
                   reconcile = "Reconciliation")
 MAX_TEXT <- 1500000
 MAX_SEGMENTS <- 4000
-PROVIDERS <- c("manual", "mistral", "anthropic", "copilot")
+PROVIDERS <- c("manual", "mistral", "anthropic")
 # Reasoning effort is a per-model API option. Claude: output_config.effort (Opus 4.5 and later);
 # Mistral: reasoning_effort on models with adjustable reasoning. "" means provider default.
 EFFORT_LEVELS <- list(anthropic = c("low", "medium", "high", "xhigh", "max"),
                       mistral = c("none", "high"))
 
-# Package-level state: the curl pool used for asynchronous requests, the profile folders
-# held by this R session, and a guard that detects waits inside request handlers.
+# Package-level state: the curl pool used for asynchronous requests, the prompt cache, and a
+# guard that detects waits inside request handlers.
 .qt <- new.env(parent = emptyenv())
 .qt$in_handler <- FALSE
-.qt$held_profiles <- character()
 
 # Python's str.isspace() characters, used where the Python code calls strip() or uses \s.
 # Written with real characters (not \x{...}) so that the pattern is UTF-8 and PCRE runs
@@ -26,9 +25,9 @@ WS <- "[\t\n\v\f\r\u001c-\u001f \u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202
 `%||%` <- function(a, b) if (is.null(a)) b else a
 
 # ----- conditions -----------------------------------------------------------------------
-# qt_workflow_error and qt_browser_error carry user-facing text (Python WorkflowError and
-# BrowserError). qt_format_error stands for Python's TypeError/AttributeError on malformed
-# input, which the server reports as "Invalid request format.".
+# qt_workflow_error carries user-facing text (Python WorkflowError). qt_format_error stands
+# for Python's TypeError/AttributeError on malformed input, which the server reports as
+# "Invalid request format.".
 
 qt_condition <- function(class, message, ...) {
   structure(class = c(class, "error", "condition"),
@@ -37,13 +36,9 @@ qt_condition <- function(class, message, ...) {
 
 workflow_error <- function(message) stop(qt_condition("qt_workflow_error", message))
 
-browser_error <- function(message, code = "connection") {
-  stop(qt_condition("qt_browser_error", message, code = code))
-}
-
 format_error <- function() stop(qt_condition("qt_format_error", "Invalid request format."))
 
-is_qt_message_error <- function(e) inherits(e, c("qt_workflow_error", "qt_browser_error"))
+is_qt_message_error <- function(e) inherits(e, "qt_workflow_error")
 
 # ----- JSON-shaped values -----------------------------------------------------------------
 # Objects are named lists, arrays are unnamed lists, null is NULL and scalars are atomic
@@ -275,29 +270,4 @@ qt_event <- function() {
   self$clear <- function() self$flag <- FALSE
   self$is_set <- function() isTRUE(self$flag)
   self
-}
-
-# urllib.parse.urlsplit for the parts the transport checks.
-url_split <- function(url) {
-  if (!is_str(url)) url <- ""
-  m <- regmatches(url, regexec("^(?:([A-Za-z][A-Za-z0-9+.-]*):)?(?://([^/?#]*))?([^?#]*)(\\?[^#]*)?(#.*)?$", url, perl = TRUE))[[1]]
-  if (!length(m)) return(list(scheme = "", hostname = NA_character_, port = NA_integer_, port_ok = TRUE, path = ""))
-  scheme <- tolower(m[2]); netloc <- m[3]; path <- m[4]
-  hostport <- sub("^.*@", "", netloc)
-  host <- hostport; port <- NA_integer_; port_ok <- TRUE
-  if (startsWith(hostport, "[")) {
-    host <- sub("^\\[([^]]*)\\].*$", "\\1", hostport)
-    rest <- sub("^\\[[^]]*\\]", "", hostport)
-  } else {
-    host <- sub(":.*$", "", hostport)
-    rest <- if (grepl(":", hostport, fixed = TRUE)) sub("^[^:]*", "", hostport) else ""
-  }
-  if (nzchar(rest)) {
-    digits <- sub("^:", "", rest)
-    if (nzchar(digits)) {
-      if (grepl("^[0-9]+$", digits) && as.numeric(digits) <= 65535) port <- as.integer(digits) else port_ok <- FALSE
-    }
-  }
-  list(scheme = scheme, hostname = if (nzchar(host)) tolower(host) else NA_character_,
-       port = port, port_ok = port_ok, path = path)
 }

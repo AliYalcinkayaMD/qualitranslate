@@ -14,10 +14,7 @@ settings_defaults <- function() {
     reporting = list(translation_scope = "Selected interview transcript before analysis", dialect_context = "",
                      reviewer_background = "", decision_summary = ""),
     stages = list(forward = stage_defaults(), back = stage_defaults(), reconcile = stage_defaults()),
-    prompt_additions = list(forward = "", back = "", reconcile = ""),
-    # Copilot browser mode: run each batch in a Copilot "Temporary chat" (not saved to
-    # chat history and, per Microsoft's on-screen notice, does not create memories).
-    copilot = list(temporary_chat = TRUE))
+    prompt_additions = list(forward = "", back = "", reconcile = ""))
 }
 
 validate_settings <- function(value) {
@@ -40,11 +37,21 @@ validate_settings <- function(value) {
   additions_in <- jget(value, "prompt_additions", empty_obj())
   for (stage in STAGES) {
     item <- jget(stages_in, stage, result$stages[[stage]])
+    if (is_obj(item) && identical(item[["provider"]], "copilot")) {
+      # Earlier versions could drive Copilot Chat automatically. That mode was removed
+      # (Microsoft's terms forbid data extraction from its online services); such stages
+      # become copy-and-paste stages with the same chat tool.
+      item$provider <- "manual"
+      item$chat_tool <- if (truthy(item[["chat_tool"]])) item[["chat_tool"]] else "Microsoft Copilot"
+      item$model <- ""; item$workspace_id <- ""
+      for (name in c("temperature", "top_p", "random_seed")) item <- jset(item, name, NULL)
+      item$effort <- ""
+    }
     provider <- if (is_obj(item)) item[["provider"]] else NULL
     if (!is_obj(item) || !is_str(provider) || !(provider %in% PROVIDERS)) {
       workflow_error(paste0("Invalid provider for ", stage))
     }
-    chat <- provider %in% c("manual", "copilot")
+    chat <- provider == "manual"
     config <- list(
       provider = provider,
       model = text_value(jget(item, "model", ""), "model", 200, TRUE),
@@ -79,13 +86,6 @@ validate_settings <- function(value) {
     if (provider == "anthropic" && !is.null(config$random_seed)) {
       workflow_error("The Claude API has no random seed setting. Leave the seed empty for Claude.")
     }
-    if (provider == "copilot") {
-      # Copilot does not let other programs set sampling; values (for example in a project
-      # saved by 1.4.0) are dropped rather than recorded as if they had been applied.
-      config <- jset(config, "temperature", NULL)
-      config <- jset(config, "top_p", NULL)
-      config <- jset(config, "random_seed", NULL)
-    }
     result$stages[[stage]] <- config
     result$prompt_additions[[stage]] <- text_value(jget(additions_in, stage, ""), "prompt addition", 5000, TRUE)
   }
@@ -103,9 +103,6 @@ validate_settings <- function(value) {
       notes = text_value(jget(t, "notes", ""), "Terminology notes", 1500, TRUE),
       required = jget(t, "required", TRUE))
   }
-  copilot <- jget(value, "copilot", list(temporary_chat = TRUE))
-  if (!is_obj(copilot) || !is_bool(jget(copilot, "temporary_chat", TRUE))) workflow_error("Invalid Copilot settings.")
-  result$copilot <- list(temporary_chat = jget(copilot, "temporary_chat", TRUE))
   reporting <- jget(value, "reporting", empty_obj())
   if (!is_obj(reporting)) workflow_error("Invalid reporting information.")
   for (k in names(result$reporting)) {

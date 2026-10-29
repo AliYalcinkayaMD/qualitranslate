@@ -1,7 +1,7 @@
 # Port of python/tests/test_workflow.py (pipeline, validation, providers, HTTP).
 
 pipeline_ws <- function() {
-  ws <- qt("new_workspace")(fake_client(), scripted_copilot())
+  ws <- qt("new_workspace")(fake_client())
   qt("ws_load_text")(ws, "Interviewer: SOURCE_SENTINEL_91\nParticipant A: Pain mattered to me.", "Test")
   ws
 }
@@ -138,7 +138,7 @@ test_that("restore keeps results, prompts and human review", {
   ws <- pipeline_ws(); api_config(ws)
   start_and_run(ws, "all")
   qt("ws_review")(ws, "S0001", "Reviewed target", "AY", "Checked")
-  restored <- qt("new_workspace")(fake_client(), scripted_copilot())
+  restored <- qt("new_workspace")(fake_client())
   qt("ws_import_project")(restored, qt("json_parse")(qt("json_str")(ws$project)))
   expect_identical(restored$project$segments[[1]]$review$text, "Reviewed target")
   expect_identical(restored$project$runs[[1]]$system_prompt, ws$project$runs[[1]]$system_prompt)
@@ -239,7 +239,7 @@ test_that("text uploads must be UTF-8 and documents must be supported types", {
 })
 
 test_that("exports escape HTML and spreadsheet formulas", {
-  ws <- qt("new_workspace")(fake_client(), scripted_copilot())
+  ws <- qt("new_workspace")(fake_client())
   qt("ws_load_text")(ws, 'P: =HYPERLINK("https://example.com")\nQ: <script>alert(1)</script>', "<img src=x onerror=alert(1)>")
   csv <- qt("raw_to_utf8")(qt("export_csv")(ws$project))
   report <- qt("raw_to_utf8")(qt("export_html")(ws$project))
@@ -263,7 +263,7 @@ capture_client <- function(reply) {
 }
 
 test_that("an Anthropic back-translation request has no temperature and no original", {
-  ws <- qt("new_workspace")(fake_client(), scripted_copilot())
+  ws <- qt("new_workspace")(fake_client())
   qt("ws_load_text")(ws, "P: Original source")
   ws$project$segments[[1]]$forward <- list(text = "Translated target", notes = list())
   ws$project$settings$stages$back <- list(provider = "anthropic", model = "chosen-model", workspace_id = "workspace")
@@ -278,7 +278,7 @@ test_that("an Anthropic back-translation request has no temperature and no origi
 })
 
 test_that("a truncated provider response is never accepted", {
-  ws <- qt("new_workspace")(fake_client(), scripted_copilot())
+  ws <- qt("new_workspace")(fake_client())
   qt("ws_load_text")(ws, "P: Text")
   ws$project$settings$stages$forward <- list(provider = "mistral", model = "test", workspace_id = "")
   client <- capture_client(list(choices = list(list(finish_reason = "length", message = list(content = "partial")))))
@@ -308,7 +308,7 @@ test_that("provider HTTP errors are reported without the body and retried only f
 # ----- HTTP level -----------------------------------------------------------------------------
 
 test_that("the HTTP server enforces its security rules and serves the demo", {
-  ws <- qt("new_workspace")(fake_client(), scripted_copilot())
+  ws <- qt("new_workspace")(fake_client())
   srv <- start_test_server(ws); on.exit(httpuv::stopServer(srv$server))
   root <- http_request(srv$url, loop_ws = ws)
   expect_identical(root$status, 200L)
@@ -357,7 +357,7 @@ test_that("the job runs in the main loop while state polls and Stop keep working
     qt("qt_wait")(0.6)       # an API request that takes a while
     plain(task, key)
   }
-  ws <- qt("new_workspace")(slow, scripted_copilot())
+  ws <- qt("new_workspace")(slow)
   qt("ws_load_text")(ws, paste(sprintf("P: fictional line %d", 1:6), collapse = "\n"), "Fixture")
   api_config(ws, batch_segments = 1L)
   srv <- start_test_server(ws); on.exit(httpuv::stopServer(srv$server))
@@ -401,7 +401,7 @@ test_that("/api/models answers asynchronously and reports provider errors withou
     list(status = 200L, headers = list("Content-Type" = "application/json"), body = '{"data":[{"id":"m-b"},{"id":"m-a"},{"x":1}]}')
   }))
   on.exit(httpuv::stopServer(fixture))
-  ws <- qt("new_workspace")(qt("new_api_client")(.base = sprintf("http://127.0.0.1:%d", port)), scripted_copilot())
+  ws <- qt("new_workspace")(qt("new_api_client")(.base = sprintf("http://127.0.0.1:%d", port)))
   srv <- start_test_server(ws); on.exit(httpuv::stopServer(srv$server), add = TRUE)
   no_key <- api(srv, "models", list(provider = "mistral"))
   expect_identical(no_key$status, 400L)

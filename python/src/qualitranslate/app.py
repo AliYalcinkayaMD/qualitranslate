@@ -12,7 +12,6 @@ from pathlib import Path
 
 from .core import (APP_VERSION, DEMO_SOURCE, WorkflowError, Workspace, export_bundle,
                   export_csv, export_html, methods_paragraph, read_document, read_upload)
-from .copilot_browser import BrowserError
 
 ROOT = Path(__file__).resolve().parent
 MAX_REQUEST = 25_000_000
@@ -107,20 +106,6 @@ def make_handler(workspace, token):
                     workspace.save_settings(body.get("settings"))
                 elif route == "/api/key":
                     workspace.set_key(body.get("provider"), body.get("key", ""))
-                elif route in {"/api/copilot/open", "/api/copilot/check", "/api/copilot/cancel", "/api/copilot/close", "/api/copilot/forget"}:
-                    with workspace.lock:
-                        workspace._idle()
-                    if route.endswith('/open') or route.endswith('/check'):
-                        result = workspace.copilot_connection.start()
-                    elif route.endswith('/cancel'):
-                        result = workspace.copilot_connection.cancel()
-                    else:
-                        workspace.copilot_connection.cancel()
-                        workspace.copilot.close(forget=route.endswith('/forget'))
-                        workspace.copilot_connection.phase = 'idle'
-                        result = workspace.copilot_connection.summary()
-                    self._send(result)
-                    return
                 elif route == "/api/models":
                     provider = body.get("provider")
                     with workspace.lock:
@@ -173,8 +158,8 @@ def make_handler(workspace, token):
                     self._send({"error": "Unknown endpoint."}, status=404)
                     return
                 self._send({"ok": True})
-            except (WorkflowError, BrowserError, json.JSONDecodeError, TypeError, ValueError, AttributeError) as exc:
-                message = str(exc) if isinstance(exc, (WorkflowError, BrowserError)) else "Invalid request format."
+            except (WorkflowError, json.JSONDecodeError, TypeError, ValueError, AttributeError) as exc:
+                message = str(exc) if isinstance(exc, WorkflowError) else "Invalid request format."
                 self._send({"error": message}, status=400)
             except Exception:
                 self._send({"error": "An internal error occurred. Completed work remains in memory; export your project before restarting."}, status=500)
@@ -229,8 +214,6 @@ def main(argv=None):
         print("\nStopping. In-memory project and credentials will be cleared.")
     finally:
         workspace.cancel.set()
-        workspace.copilot_connection.cancel()
-        workspace.copilot.close()
         workspace.keys.clear()
         server.server_close()
     return 0

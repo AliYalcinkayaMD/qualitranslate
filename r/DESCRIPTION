@@ -13,13 +13,12 @@ Description: A local browser workspace for translating qualitative interview
     compares all three texts, flags discrepancies by category and severity and
     proposes a draft. Every draft needs a named human review decision before it
     counts as reviewed. Each stage can be run by copying prompt packets into
-    any chat tool, through the 'Mistral' or 'Anthropic' ('Claude') application
-    programming interfaces, or by operating an institutional 'Microsoft 365
-    Copilot Chat' page in a dedicated 'Chrome' or 'Edge' window that the user
-    signs in to. Exports include reviewed translations, a parallel review
-    table, the exact prompts and replies, a hash-chained audit record and a
-    draft methods paragraph. Projects are interchangeable with the 'Python'
-    version of the tool.
+    any chat tool, including institutional chat services, or through the
+    'Mistral' or 'Anthropic' ('Claude') application programming interfaces.
+    Exports include reviewed translations, a parallel review table, the exact
+    prompts and replies, a hash-chained audit record and a draft methods
+    paragraph. Projects are interchangeable with the 'Python' version of the
+    tool.
 License: MIT + file LICENSE
 URL: https://github.com/AliYalcinkayaMD/qualitranslate
 BugReports: https://github.com/AliYalcinkayaMD/qualitranslate/issues
@@ -28,27 +27,21 @@ Depends:
     R (>= 4.0.0)
 Imports: 
     curl,
-    filelock,
     httpuv,
     jsonlite,
     later,
     openssl,
-    processx,
     promises,
-    tools,
     utils,
     xml2,
     zip
 Suggests: 
     testthat (>= 3.0.0)
 Config/testthat/edition: 3
-SystemRequirements: Google Chrome or Microsoft Edge (optional; only for
-    the Copilot browser mode)
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.1
 Collate: 
     'api_client.R'
-    'copilot_browser.R'
     'utils.R'
     'documents.R'
     'export.R'
@@ -60,6 +53,5 @@ Collate:
     'quality.R'
     'run_app.R'
     'server.R'
-    'websocket.R'
     'workflow.R'
     'workspace.R'

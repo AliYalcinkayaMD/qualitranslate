@@ -33,7 +33,7 @@ prompt_version <- function() prompt_data()$version
 #'
 #' Prints the versioned system prompts that QualiTranslate sends for forward
 #' translation, blind back-translation and reconciliation. The same text is used by
-#' the copy-and-paste workflow, the API providers and the Copilot browser mode.
+#' the copy-and-paste workflow and the API providers.
 #'
 #' @param stage Which prompt to show: `"all"` (the default), `"forward"`, `"back"`
 #'   or `"reconcile"`.

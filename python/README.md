@@ -21,15 +21,14 @@ Your browser opens the workspace at `http://127.0.0.1:8765` (or the next free ad
 
 If the `qualitranslate` command is not found, start it with `python3 -m qualitranslate`.
 
-QualiTranslate uses only the Python standard library. Copilot mode also needs Google Chrome or Microsoft Edge.
+QualiTranslate uses only the Python standard library.
 
 ## What it does
 
 1. **Add a transcript.** Paste text or open a `.docx`, `.txt` or `.md` file. The app splits it into sections by speaker turn or paragraph and points out headers, notes and tables, so you can confirm what enters translation. A quick local check warns about possible identifiers (e-mail addresses, phone-like and CPR-like numbers, web addresses, full dates). It never changes your text, and it cannot find names or places.
 2. **Choose a tool.** Each stage can use a different tool:
-   - **Microsoft 365 Copilot Chat** with a work or school account, without an API key and without copy and paste. Personal Microsoft accounts (the consumer Copilot) are not supported. The app opens a separate Chrome window, you sign in yourself, and each batch runs in a new Copilot temporary chat.
-   - **Mistral API** (for example an AAU Mistral workspace key) or the **Claude API**.
-   - **Any other AI chat**, by copying a prepared prompt packet and pasting the reply back.
+   - **Claude API** or **Mistral API**: automatic, with your own API key.
+   - **Any AI chat** (for example ChatGPT, Claude, Microsoft Copilot or Mistral's Le Chat), by copying a prepared prompt packet and pasting the reply back.
 3. **Translate.** The app runs forward translation, blind back-translation and reconciliation as separate requests. The back-translation request contains only the forward translation: never the original, the study context or the glossary.
 4. **Review.** Reconciliation flags possible problems by category (for example negation, omission, temporality, idioms and metaphors) and severity. A named reviewer records a decision for each section.
 5. **Download.** One ZIP holds the translation table (CSV), a side-by-side report (HTML), the project file, every prompt and reply, the audit trail and a methods record that starts with a **draft methods paragraph** for your manuscript.
@@ -45,7 +44,7 @@ Under **Advanced settings** each stage has its own provider and model, plus:
 - **Random seed** (Mistral only). A seed does not guarantee identical translations.
 - A **different model for blind back-translation** can catch errors that the first model would repeat. In the guided setup choose it under *Blind back-translation model*.
 
-Copilot does not let other programs set temperature, reasoning or the model. If your Copilot window offers a mode (for example *Auto* or *Think deeper*), choose it there; the label Copilot shows is recorded for every batch.
+In copy-and-paste mode these settings are not sent anywhere; set them in the chat itself if it offers them, and record what you used.
 
 Changing a later stage's settings keeps the earlier stages: for example, a new back-translation model clears only the back-translations and reconciliations.
 
@@ -54,15 +53,10 @@ Changing a later stage's settings keeps the earlier stages: for example, a new b
 - Text is sent only to the service you choose, in batches. Use a tool and account that your institution has approved for the data in your study, and pseudonymise transcripts first when your approval requires it.
 - API keys are kept only in memory while the app runs. They are never written to disk or included in exports.
 - Projects stay in memory until you download them.
-- The Copilot window uses a dedicated browser profile. The app reads only the visible chat page. It never reads your password, cookies, tokens or network traffic, and it does not bypass sign-in, verification prompts or usage limits.
 
 ## What it does not claim
 
 Back-translation is a diagnostic aid. Separate requests to the same model are not independent human translators, and a new or temporary chat does not prove that a service has no other context. The methods record states what was actually done, including the tools, models and settings used, and does not claim validation or equivalence.
-
-## For maintainers
-
-`python -m qualitranslate.diagnostic` saves a structural snapshot of the Copilot page (control labels and roles only, no chat content) to help update the page adapter when Microsoft changes Copilot's layout.
 
 ## Licence
 

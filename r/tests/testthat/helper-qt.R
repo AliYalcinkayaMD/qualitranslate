@@ -2,13 +2,16 @@
 
 qt <- function(name) get(name, envir = asNamespace("qualitranslate"))
 
-# Fake API client: answers every request locally (fixture text only).
-fake_client <- function() {
+# Fake API client: answers every request locally (fixture text only). `on_complete`, if set,
+# is called with each task before the answer is returned.
+fake_client <- function(on_complete = NULL) {
   self <- new.env(parent = emptyenv())
   self$requests <- list()
   self$fail_once <- FALSE
+  self$on_complete <- on_complete
   self$complete <- function(task, key) {
     self$requests[[length(self$requests) + 1L]] <- task
+    if (!is.null(self$on_complete)) self$on_complete(task)
     if (self$fail_once && length(self$requests) == 2L) {
       self$fail_once <- FALSE
       qt("workflow_error")("Simulated provider failure")
@@ -27,40 +30,6 @@ fake_client <- function() {
   self
 }
 
-# Scripted stand-in for the Copilot browser transport: declines any packet containing a marker.
-scripted_copilot <- function(marker = "BLOCKED_WORD", on_complete = NULL) {
-  self <- new.env(parent = emptyenv())
-  self$marker <- marker; self$requests <- list(); self$temporary_values <- logical(); self$on_complete <- on_complete
-  self$temporary_chat <- TRUE; self$ready <- TRUE; self$opened <- TRUE
-  self$summary <- function() list(open = self$opened, ready = self$ready, experimental = TRUE, message = if (self$ready) "ready" else "Sign in and check connection.",
-                                  step = "idle", step_detail = "")
-  self$open <- function() { self$opened <- TRUE; self$summary() }
-  self$check <- function() self$summary()
-  self$close <- function(forget = FALSE) { self$ready <- FALSE; self$opened <- FALSE }
-  self$complete <- function(box, cancel = NULL) {
-    task <- box$task
-    self$requests[[length(self$requests) + 1L]] <- task
-    self$temporary_values <- c(self$temporary_values, self$temporary_chat)
-    if (!is.null(self$on_complete)) self$on_complete(task)
-    packet <- paste0(task$system, task$user)
-    if (grepl(self$marker, packet, fixed = TRUE)) {
-      box$task$declined_reply <- "Sorry, it looks like I can't respond to this."
-      qt("browser_error")("Copilot declined or could not answer this batch.", "declined")
-    }
-    box$task$transport_prompt <- paste0("VISIBLE_UI_PACKET\n", task$system, "\n", task$user)
-    payload <- qt("json_parse")(task$user)
-    rows <- lapply(payload$segments, function(row) {
-      if (task$stage == "reconcile") list(id = row$id, text = paste("T", row$id), issues = list(), rationale = "ok", needs_human = TRUE)
-      else list(id = row$id, text = paste("T", row$id), notes = list())
-    })
-    list(raw = qt("json_str")(list(qt_receipt = "r", segments = rows)),
-         provenance = list(provider = "copilot_browser", model = "not reported by Copilot Chat",
-                           chat_isolation = "new_temporary_chat_verified", receipt_verified = TRUE,
-                           copilot_model_selector_label = "Auto", temporary_chat_notice = "notice", browser = "Chrome/x", submitted_at = "t"))
-  }
-  self
-}
-
 # Run a queued job (the app's main loop does this).
 run_job <- function(ws) {
   expect_true(ws$job$running)
@@ -72,16 +41,6 @@ run_job <- function(ws) {
 start_and_run <- function(ws, stage = "all", demo = FALSE, ...) {
   qt("ws_start_job")(ws, stage, demo = demo, ...)
   run_job(ws)
-}
-
-copilot_workspace <- function(copilot, text) {
-  ws <- qt("new_workspace")(fake_client(), copilot)
-  qt("ws_load_text")(ws, text, "Fixture")
-  settings <- qt("settings_defaults")()
-  for (st in names(settings$stages)) { settings$stages[[st]]$provider <- "copilot"; settings$stages[[st]]$chat_tool <- "Institutional Copilot" }
-  qt("ws_save_settings")(ws, settings)
-  ws$copilot_connection$phase <- "ready"
-  ws
 }
 
 api_settings <- function(ws, provider = "mistral", model = "fixture-model") {

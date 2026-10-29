@@ -11,7 +11,7 @@ let state = null, activeView = 'source', activeStage = 'forward', currentTask = 
 let lastRevision = -1, currentProject = '', settingsDirty = false, settingsRendered = false, wasRunning = false, lastJobError = '';
 let guidedModels = {}, guidedProvider = 'manual', manualLabel = '';
 let currentInspection=null, includedBlocks=new Set(), uploadedBlocks=null, batchSelection=null;
-let pendingCopilotStart=null, copilotStarting=false, pollInFlight=false;
+let pollInFlight=false;
 let selectedSeverities=new Set();
 const severityRank={none:0,minor:1,major:2,critical:3};
 const issueTier=seg=>(seg.reconcile?.issues||[]).reduce((a,i)=>severityRank[i.severity]>severityRank[a]?i.severity:a,'none');
@@ -51,9 +51,6 @@ async function refresh(force=false){
   $('jobPanel').classList.toggle('hidden',!state.job.running);
   $('jobMessage').textContent=state.job.message;
   $('jobCount').textContent=state.job.done+' / '+state.job.total+' batches';
-  const step=state.copilot||{};
-  $('jobStep').textContent=state.job.running&&step.step&&step.step!=='idle'?'Copilot: '+step.step_detail+' ('+(step.step_elapsed||0)+' s)':'';
-  renderHumanNeeded();
   if(state.job.error && state.job.error!==lastJobError)showError(state.job.error);
   lastJobError=state.job.error;
   const finished=wasRunning && !state.job.running && !state.job.error;
@@ -74,15 +71,14 @@ async function refresh(force=false){
   }
   $('mistralKeyStatus').textContent=state.credentials.mistral?'Key stored in app memory · not included in exports':'No key stored';
   $('anthropicKeyStatus').textContent=state.credentials.anthropic?'Key stored in app memory · not included in exports':'No key stored';
-  const disableIds=['loadDemo','startOwn','demoToOwn','importText','generatePrompt','runStage','runAll','runDemo','saveSettings','reset','applyManual','guidedContinue','guidedConnect','confirmCleaning','approveMinors','openCopilot','checkCopilot','closeCopilot','forgetCopilot'];
+  const disableIds=['loadDemo','startOwn','demoToOwn','importText','generatePrompt','runStage','runAll','runDemo','saveSettings','reset','applyManual','guidedContinue','guidedConnect','confirmCleaning','approveMinors'];
   disableIds.forEach(id=>$(id).disabled=state.job.running);
-  updateGuidedTool();renderProcess();renderCopilotStatus();
+  updateGuidedTool();renderProcess();
   $('approveMinors').disabled=state.job.running||!state.project.segments.some(s=>s.reconcile&&!s.review&&issueTier(s)==='minor');
   if(finished){
     if(complete()){go('review');toast('Translation stages complete. Start with Review next section.');}
     else {setStage(nextStage());toast('Completed work is saved in memory. You can resume the remaining stages.');}
   }
-  await advanceCopilotConnection();
 }
 function go(view){
   if(!state)return;
@@ -119,21 +115,21 @@ function renderStages(){
   $('stageCards').innerHTML=Object.keys(stageNames).map((stage,i)=>{
     const done=p.segments.filter(s=>s[stage]).length;
     const config=p.settings.stages[stage];
-    return '<button class="stage-card '+(activeStage===stage?'active':'')+'" data-stagecard="'+stage+'"><span class="step-number">'+(done===n&&n?'✓':'0'+(i+1))+'</span><h3>'+stageNames[stage]+'</h3><p>'+esc({manual:'Copy and paste',copilot:'Copilot browser',anthropic:'Claude API',mistral:'Mistral API'}[config.provider])+'</p><progress class="progress" value="'+done+'" max="'+Math.max(1,n)+'" aria-label="'+stageNames[stage]+' progress"></progress><div class="count">'+done+' / '+n+' sections</div></button>';
+    return '<button class="stage-card '+(activeStage===stage?'active':'')+'" data-stagecard="'+stage+'"><span class="step-number">'+(done===n&&n?'✓':'0'+(i+1))+'</span><h3>'+stageNames[stage]+'</h3><p>'+esc({manual:'Copy and paste',anthropic:'Claude API',mistral:'Mistral API'}[config.provider])+'</p><progress class="progress" value="'+done+'" max="'+Math.max(1,n)+'" aria-label="'+stageNames[stage]+' progress"></progress><div class="count">'+done+' / '+n+' sections</div></button>';
   }).join('');
   $('stageHeading').textContent=stageNames[activeStage];
   $('stageDescription').textContent=stageDescriptions[activeStage];
-  $('stageMode').textContent={manual:'COPY AND PASTE',copilot:'COPILOT BROWSER',anthropic:'CLAUDE API',mistral:'MISTRAL API'}[p.settings.stages[activeStage].provider];
+  $('stageMode').textContent={manual:'COPY AND PASTE',anthropic:'CLAUDE API',mistral:'MISTRAL API'}[p.settings.stages[activeStage].provider];
   const allDone=complete(), manual=p.settings.stages[activeStage].provider==='manual';
   const pending=p.segments.filter(s=>!s[activeStage]).length;
   $('runDemo').classList.toggle('hidden',!p.demo||allDone);
   $('runAll').classList.toggle('hidden',p.demo||allDone||manual);
   const started=p.segments.some(s=>s.forward);
-  $('runAll').textContent=p.settings.stages[activeStage].provider==='copilot'?(started?'Resume with Copilot →':'Translate with Copilot →'):(started?'Resume automatic translation →':'Start automatic translation →');
+  $('runAll').textContent=started?'Resume automatic translation →':'Start automatic translation →';
   $('generatePrompt').classList.toggle('hidden',p.demo||allDone||!manual||!pending);
   $('workflowReview').classList.toggle('hidden',!allDone);
   document.querySelector('.workflow-advanced').classList.toggle('hidden',p.demo||manual||allDone);
-  $('nextAction').textContent=allDone?'The three translation stages are complete. Your next step is human review.':p.demo?'Run the offline demo to see all three stages.':manual?'Next: copy the '+stageNames[activeStage].toLowerCase()+' prompt. '+pending+' sections remain in this stage.':p.settings.stages[activeStage].provider==='copilot'?(started?'Click Resume with Copilot to continue where it stopped. Completed batches are kept.':'No copy and paste needed. Click Translate with Copilot. A separate Copilot window opens; sign in there if asked, and the app runs all three stages.'):'Ready to translate. The app will run each API stage in order and show the results for review.';
+  $('nextAction').textContent=allDone?'The three translation stages are complete. Your next step is human review.':p.demo?'Run the offline demo to see all three stages.':manual?'Next: copy the '+stageNames[activeStage].toLowerCase()+' prompt. '+pending+' sections remain in this stage.':'Ready to translate. The app will run each API stage in order and show the results for review.';
   renderChatGuide(manual&&!p.demo&&!allDone&&pending>0);
   $('runSummary').textContent=p.run_count+' batches recorded. Prompts and model records are included in your download.';
   $('reviewBadge').textContent=p.segments.filter(s=>s.reconcile&&!s.review).length;
@@ -204,12 +200,11 @@ function renderSettings(){
   const s=state.project.settings;
   [['sourceLanguage','source_language'],['targetLanguage','target_language'],['studyContext','study_context'],['glossary','glossary'],['batchChars','batch_chars'],['batchSegments','batch_segments'],['maxTokens','max_tokens']].forEach(x=>$(x[0]).value=s[x[1]]);
   $('forwardAddition').value=s.prompt_additions.forward;$('reconcileAddition').value=s.prompt_additions.reconcile;
-  $('copilotTemporary').checked=(s.copilot||{temporary_chat:true}).temporary_chat!==false;
   $('setupSourceLanguage').value=s.source_language;$('setupTargetLanguage').value=s.target_language;
   if(activeView!=='connect')syncGuidedFromSettings();
   $('stageSettings').innerHTML=Object.keys(stageNames).map(stage=>{
     const c=s.stages[stage];
-    return '<div class="config-row"><strong>'+stageNames[stage]+'</strong><div><label for="provider-'+stage+'">Mode / provider</label><select id="provider-'+stage+'">'+[['copilot','Copilot browser · no API key'],['manual','Manual copy / paste'],['mistral','Mistral API'],['anthropic','Claude API']].map(x=>'<option value="'+x[0]+'" '+(x[0]===c.provider?'selected':'')+'>'+x[1]+'</option>').join('')+'</select></div><div><label for="model-'+stage+'">Exact API model id</label><input id="model-'+stage+'" value="'+esc(c.model)+'" placeholder="Load models, then select" list="models-'+stage+'"><datalist id="models-'+stage+'"></datalist></div><div class="workspace-field"><label for="workspace-'+stage+'">Claude workspace id · if required</label><input id="workspace-'+stage+'" value="'+esc(c.workspace_id||'')+'" placeholder="wrkspc_…"></div><button class="button subtle" data-models="'+stage+'">Load available models</button></div><div id="modelResults-'+stage+'" class="models-list hidden"></div>';
+    return '<div class="config-row"><strong>'+stageNames[stage]+'</strong><div><label for="provider-'+stage+'">Mode / provider</label><select id="provider-'+stage+'">'+[['manual','Manual copy / paste'],['mistral','Mistral API'],['anthropic','Claude API']].map(x=>'<option value="'+x[0]+'" '+(x[0]===c.provider?'selected':'')+'>'+x[1]+'</option>').join('')+'</select></div><div><label for="model-'+stage+'">Exact API model id</label><input id="model-'+stage+'" value="'+esc(c.model)+'" placeholder="Load models, then select" list="models-'+stage+'"><datalist id="models-'+stage+'"></datalist></div><div class="workspace-field"><label for="workspace-'+stage+'">Claude workspace id · if required</label><input id="workspace-'+stage+'" value="'+esc(c.workspace_id||'')+'" placeholder="wrkspc_…"></div><button class="button subtle" data-models="'+stage+'">Load available models</button></div><div id="modelResults-'+stage+'" class="models-list hidden"></div>';
   }).join('');
   stages.forEach(stage=>{
     const c=s.stages[stage];
@@ -228,10 +223,10 @@ function updateSampling(stage){
   const wanted=effort.options.length?effort.value:effort.dataset.saved||'',levels=effortLevels[provider]||[['','Not available for this mode']];
   effort.innerHTML=levels.map(([v,l])=>'<option value="'+v+'">'+l+'</option>').join('');
   effort.value=levels.some(([v])=>v===wanted)?wanted:'';effort.disabled=!effortLevels[provider];
-  $('sampling-'+stage).disabled=provider==='copilot';
-  $('samplingValue-'+stage).disabled=provider==='copilot'||mode==='default';
-  $('seed-'+stage).disabled=['anthropic','copilot'].includes(provider);
-  $('samplingNote-'+stage).textContent=provider==='copilot'?'Copilot does not let other programs set temperature or reasoning. If your Copilot window offers a mode (for example Auto or Think deeper), choose it there before connecting; the label Copilot shows is recorded for every batch.':provider==='anthropic'?'Claude API: values you choose are sent with each request; blank means provider default. Some Claude models accept only their default temperature, and reasoning effort works only on models that support it. If a request is rejected, set it back to Provider default. Claude has no seed setting.':provider==='manual'?'Chat mode: temperature and seed are recorded as user-reported settings only. Set them yourself in the external chat if it offers them.':'Mistral API: values you choose are sent with each request; blank means provider default. Reasoning effort applies to Mistral models with adjustable reasoning. A seed is a sampling control, not a guarantee of identical translations.';
+  $('sampling-'+stage).disabled=false;
+  $('samplingValue-'+stage).disabled=mode==='default';
+  $('seed-'+stage).disabled=provider==='anthropic';
+  $('samplingNote-'+stage).textContent=provider==='anthropic'?'Claude API: values you choose are sent with each request; blank means provider default. Some Claude models accept only their default temperature, and reasoning effort works only on models that support it. If a request is rejected, set it back to Provider default. Claude has no seed setting.':provider==='manual'?'Chat mode: temperature and seed are recorded as user-reported settings only. Set them yourself in the external chat if it offers them.':'Mistral API: values you choose are sent with each request; blank means provider default. Reasoning effort applies to Mistral models with adjustable reasoning. A seed is a sampling control, not a guarantee of identical translations.';
 }
 function renderTermRows(terms){
   $('termRows').innerHTML=terms.map((t,i)=>'<div class="term-row"><div><label>Source term<input data-term="source" value="'+esc(t.source||'')+'" placeholder="e.g. regenerate"></label></div><div><label>Preferred target term<input data-term="target" value="'+esc(t.target||'')+'" placeholder="Agreed translation"></label></div><div><label>Accepted alternatives · separate with |<input data-term="alternatives" value="'+esc((t.alternatives||[]).join(' | '))+'"></label></div><div><label>Context / definition<input data-term="notes" value="'+esc(t.notes||'')+'"></label></div><label class="checkbox-label"><input type="checkbox" data-term="required" '+(t.required!==false?'checked':'')+'>Required</label><button class="icon-button" type="button" data-remove-term="'+i+'" aria-label="Remove glossary entry">×</button></div>').join('')||'<p class="muted">No terms added. Use Add term to build your team’s lexicon.</p>';
@@ -246,10 +241,10 @@ function gatherSettings(){
   const configs={};stages.forEach(stage=>{
     const provider=$('provider-'+stage).value,mode=$('sampling-'+stage).value;
     const raw=$('samplingValue-'+stage).value,seed=$('seed-'+stage).value;
-    if(provider!=='copilot'&&mode!=='default'&&raw==='')throw new Error('Enter a temperature / top-p value or choose Provider default.');
-    configs[stage]={provider,chat_tool:['manual','copilot'].includes(provider)?(state.project.settings.stages[stage].chat_tool||''):'',chat_model:['manual','copilot'].includes(provider)?(state.project.settings.stages[stage].chat_model||''):'',model:$('model-'+stage).value.trim(),workspace_id:$('workspace-'+stage).value.trim(),temperature:provider!=='copilot'&&mode==='temperature'?Number(raw):null,top_p:provider!=='copilot'&&mode==='top_p'?Number(raw):null,random_seed:!['anthropic','copilot'].includes(provider)&&seed!==''?Number(seed):null,effort:effortLevels[provider]?$('effort-'+stage).value:''};
+    if(mode!=='default'&&raw==='')throw new Error('Enter a temperature / top-p value or choose Provider default.');
+    configs[stage]={provider,chat_tool:provider==='manual'?(state.project.settings.stages[stage].chat_tool||''):'',chat_model:provider==='manual'?(state.project.settings.stages[stage].chat_model||''):'',model:$('model-'+stage).value.trim(),workspace_id:$('workspace-'+stage).value.trim(),temperature:mode==='temperature'?Number(raw):null,top_p:mode==='top_p'?Number(raw):null,random_seed:provider!=='anthropic'&&seed!==''?Number(seed):null,effort:effortLevels[provider]?$('effort-'+stage).value:''};
   });
-  return {source_language:$('sourceLanguage').value,target_language:$('targetLanguage').value,study_context:$('studyContext').value,glossary:$('glossary').value,batch_chars:Number($('batchChars').value),batch_segments:Number($('batchSegments').value),max_tokens:Number($('maxTokens').value),stages:configs,prompt_additions:{forward:$('forwardAddition').value,back:'',reconcile:$('reconcileAddition').value},terminology:collectTerms(),reporting:{translation_scope:$('translationScope').value,dialect_context:$('dialectContext').value,reviewer_background:$('reviewerBackground').value,decision_summary:$('decisionSummary').value},copilot:{temporary_chat:$('copilotTemporary').checked}};
+  return {source_language:$('sourceLanguage').value,target_language:$('targetLanguage').value,study_context:$('studyContext').value,glossary:$('glossary').value,batch_chars:Number($('batchChars').value),batch_segments:Number($('batchSegments').value),max_tokens:Number($('maxTokens').value),stages:configs,prompt_additions:{forward:$('forwardAddition').value,back:'',reconcile:$('reconcileAddition').value},terminology:collectTerms(),reporting:{translation_scope:$('translationScope').value,dialect_context:$('dialectContext').value,reviewer_background:$('reviewerBackground').value,decision_summary:$('decisionSummary').value}};
 }
 
 function updateGuidedTool(){
@@ -266,22 +261,18 @@ function updateGuidedTool(){
   }
   const choice=document.querySelector('input[name="guidedTool"]:checked').value;
   if(choice==='aau')$('guidedManualTool').value='Mistral chat';
-  if(choice==='copilot')$('guidedManualTool').value='Institutional Copilot';
   $('guidedManualTool').classList.toggle('hidden',choice!=='manual');document.querySelector('label[for="guidedManualTool"]').classList.toggle('hidden',choice!=='manual');
-  $('manualToolHeading').textContent=choice==='aau'?'Use Mistral chat':choice==='copilot'?'Use Copilot without an API':'Use the AI chat you already have';
-  $('institutionChatHelp').textContent=choice==='aau'?'Sign in to Mistral’s Le Chat with the account you use for this study. This option uses chat, without an API key.':choice==='copilot'?'Use your work or school Microsoft account. No API key is needed.':'Choose the external chat interface you will actually use.';
-  $('openInstitutionChat').classList.toggle('hidden',!['aau','copilot'].includes(choice));
-  $('openInstitutionChat').href=choice==='aau'?'https://chat.mistral.ai':'https://copilot.cloud.microsoft/chat';
-  $('openInstitutionChat').textContent=choice==='aau'?'Open Mistral chat ↗':'Open Copilot chat ↗';
-  $('guidedApiPanel').classList.toggle('hidden',['manual','copilot'].includes(provider));
-  $('guidedCopilotPanel').classList.toggle('hidden',provider!=='copilot');
+  $('manualToolHeading').textContent=choice==='aau'?'Use Mistral chat':'Use the AI chat you already have';
+  $('institutionChatHelp').textContent=choice==='aau'?'Sign in to Mistral’s Le Chat with the account you use for this study. This option uses chat, without an API key.':'Choose the external chat interface you will actually use.';
+  $('openInstitutionChat').classList.toggle('hidden',choice!=='aau');
+  $('openInstitutionChat').href='https://chat.mistral.ai';
+  $('openInstitutionChat').textContent='Open Mistral chat ↗';
+  $('guidedApiPanel').classList.toggle('hidden',provider==='manual');
   $('guidedManualPanel').classList.toggle('hidden',provider!=='manual');
-  const chatName=choice==='copilot'?'Copilot':choice==='aau'?'Mistral':'your AI chat';
+  const chatName=choice==='aau'?'Mistral':'your AI chat';
   $('chatSetupSteps').textContent='1. Copy instructions + interview text. 2. Paste into '+chatName+' and send. 3. Paste its full reply back here. No separate file upload is needed.';
-  $('guidedContinue').textContent=provider==='copilot'?(state.copilot?.connecting?'Waiting for Copilot sign-in…':'Connect & translate with Copilot →'):provider==='manual'?'Continue with '+chatName+' →':'Continue to translation →';
-  $('guidedContinue').disabled=state.job.running||(provider==='copilot'&&(state.copilot?.connecting||copilotStarting));
-  // The Copilot panel has its own start button and progress; avoid two identical buttons.
-  $('guidedContinue').classList.toggle('hidden',provider==='copilot');
+  $('guidedContinue').textContent=provider==='manual'?'Continue with '+chatName+' →':'Continue to translation →';
+  $('guidedContinue').disabled=state.job.running;
 
   $('guidedWorkspaceBox').classList.toggle('hidden',provider!=='anthropic');
   $('guidedApiTitle').textContent=provider==='anthropic'?'Connect Claude':'Connect Mistral';
@@ -350,8 +341,8 @@ async function copyCurrentPrompt(){
 async function startOwn(){
   if(state.project.segments.length&&!state.project.demo&&!confirm('Start a new transcript? Download your current project first if you want to keep it.'))return;
   await api('reset',{});manualLabel='';guidedModels={};await refresh(true);
-  const settings=structuredClone(state.project.settings);stages.forEach(stage=>settings.stages[stage]={...settings.stages[stage],provider:'copilot',chat_tool:'Institutional Copilot',model:'',chat_model:'',temperature:null,top_p:null,random_seed:null,effort:''});await api('settings',{settings});await refresh(true);
-  document.querySelector('input[name="guidedTool"][value="copilot"]').checked=true;guidedProvider='';updateGuidedTool();
+  const settings=structuredClone(state.project.settings);stages.forEach(stage=>settings.stages[stage]={...settings.stages[stage],provider:'manual',chat_tool:'',model:'',chat_model:'',temperature:null,top_p:null,random_seed:null,effort:''});await api('settings',{settings});await refresh(true);
+  document.querySelector('input[name="guidedTool"][value="manual"]').checked=true;guidedProvider='';updateGuidedTool();
   $('welcome').classList.add('hidden');$('sourceForm').classList.remove('hidden');
   $('sourceText').value='';$('projectTitle').value='Untitled interview';$('fileName').textContent='Word (.docx), text (.txt), or Markdown · up to 8 MB';
   currentInspection=null;uploadedBlocks=null;$('cleaningPanel').classList.add('hidden');selectedSeverities.clear();
@@ -382,23 +373,6 @@ function openEdit(id,stage){
   $('editContext').classList.add('hidden');$('editHelp').textContent='Editing the source or an earlier translation clears later stages and reviews, because context can affect other sections. Earlier run records stay in the history.';$('editNoteLabel').textContent='Reason for correction';$('editSubmit').textContent='Save correction';
   $('editDialog').showModal();
 }
-function openHumanEntry(id,stage){
-  const s=state.project.segments.find(x=>x.id===id);if(!s)return;
-  editing={id:id,stage:stage,human:true};
-  const P=state.project.settings;
-  $('editTitle').textContent='Add a human '+({forward:'forward translation',back:'blind back-translation',reconcile:'proposed translation'})[stage]+' · '+id;
-  const shown=stage==='forward'?[['Original ('+P.source_language+')',s.source]]:stage==='back'?[['Forward translation ('+P.target_language+')',textOf(s,'forward')]]:[['Original ('+P.source_language+')',s.source],['Forward translation',textOf(s,'forward')],['Blind back-translation',textOf(s,'back')]];
-  $('editContext').innerHTML=shown.map(x=>'<strong>'+esc(x[0].toUpperCase())+'</strong>'+esc(x[1])).join('<br><br>');$('editContext').classList.remove('hidden');
-  $('editHelp').textContent=stage==='back'?'Copilot declined this section. To keep the back-translation blind, translate only the forward translation shown here, without looking at the original. Enter the text in '+P.source_language+'.':stage==='reconcile'?'Copilot declined to reconcile this section. Compare all three versions and enter the proposed '+P.target_language+' translation. You will still record the final decision in Review.':'Copilot declined this section. Enter a translation into '+P.target_language+'. It is recorded as human work, not model output.';
-  $('editText').value='';$('editNote').value='';$('editNoteLabel').textContent='Who translated it, and how (recorded in the method log)';$('editSubmit').textContent='Save human translation';
-  $('editError').classList.add('hidden');$('editDialog').showModal();
-}
-function renderHumanNeeded(){
-  if(!state)return;
-  const items=(state.job.declined||[]).filter(d=>{if(d.project_id&&d.project_id!==state.project.project_id)return false;const s=state.project.segments.find(x=>x.id===d.id);return s&&!s[d.stage]&&(d.stage==='forward'||(s.forward&&(d.stage==='back'||s.back)));});
-  $('humanNeeded').classList.toggle('hidden',!items.length||state.job.running);
-  $('humanNeededList').innerHTML=items.map(d=>{const s=state.project.segments.find(x=>x.id===d.id);return '<div class="human-item"><strong>'+esc(d.id)+'<small>'+esc(stageNames[d.stage])+'</small></strong><div>'+esc(d.stage==='forward'?s.source:'(blind: forward translation shown when you add it)')+(d.reply?'<small>Copilot said: '+esc(d.reply.slice(0,160))+'</small>':'')+'</div><button class="button small" data-human="'+esc(d.id)+'" data-stage="'+esc(d.stage)+'">Add translation</button></div>';}).join('');
-}
 document.addEventListener('click',event=>{
   const risk=event.target.closest('[data-risk]');if(risk){const tier=risk.dataset.risk;if(tier==='all')selectedSeverities.clear();else if(selectedSeverities.has(tier))selectedSeverities.delete(tier);else selectedSeverities.add(tier);renderReview();return;}
   const approve=event.target.closest('[data-approve]');if(approve){act(async()=>{const reviewer=$('quickReviewer').value.trim();if(!reviewer){$('quickReviewer').focus();throw new Error('Enter your reviewer name once above, then approve.');}const seg=state.project.segments.find(s=>s.id===approve.dataset.approve);await api('review',{id:seg.id,text:seg.reconcile.text,reviewer,note:'Accepted unchanged using quick approval.',method:'quick_accept'});await refresh(true);toast('Draft approved.');});return;}
@@ -410,10 +384,9 @@ document.addEventListener('click',event=>{
   const ex=event.target.closest('[data-export]');if(ex){act(()=>exportFile(ex.dataset.export));return;}
   const review=event.target.closest('[data-review]');if(review){openReview(review.dataset.review);return;}
   const edit=event.target.closest('[data-edit]');if(edit){openEdit(edit.dataset.edit,edit.dataset.stage);return;}
-  const human=event.target.closest('[data-human]');if(human){openHumanEntry(human.dataset.human,human.dataset.stage);return;}
   const key=event.target.closest('[data-savekey]');if(key){act(async()=>{const provider=key.dataset.savekey;await api('key',{provider:provider,key:$(provider+'Key').value});$(provider+'Key').value='';await refresh();toast('Credential stored only for this running session.');});return;}
   const models=event.target.closest('[data-models]');if(models){act(async()=>{
-    const stage=models.dataset.models,provider=$('provider-'+stage).value;if(['manual','copilot'].includes(provider))throw new Error('Chat modes use their own model controls, without an API model list.');
+    const stage=models.dataset.models,provider=$('provider-'+stage).value;if(provider==='manual')throw new Error('Chat modes use their own model controls, without an API model list.');
     models.disabled=true;models.textContent='Loading…';
     try{const data=await api('models',{provider:provider,workspace_id:$('workspace-'+stage).value});$('models-'+stage).innerHTML=data.models.map(m=>'<option value="'+esc(m)+'"></option>').join('');const box=$('modelResults-'+stage);box.textContent=data.models.length?data.models.join('\n'):'No models returned for this account.';box.classList.remove('hidden');toast('Model list loaded. Choose an exact id, then save settings.');}
     finally{models.disabled=false;models.textContent='Load available models';}
@@ -467,7 +440,7 @@ document.querySelectorAll('input[name="guidedTool"]').forEach(el=>el.addEventLis
 $('guidedConnect').addEventListener('click',()=>act(async()=>{
   const provider=selectedProvider();
   const key=$('guidedKey').value.trim();
-  if(!key&&!state.credentials[provider])throw new Error('Paste your '+(provider==='anthropic'?'Claude':'Mistral')+' API key first. You can also use Mistral chat, Copilot, or Other AI chat without a key.');
+  if(!key&&!state.credentials[provider])throw new Error('Paste your '+(provider==='anthropic'?'Claude':'Mistral')+' API key first. You can also use Mistral chat or another AI chat by copy and paste, without a key.');
   const button=$('guidedConnect');button.disabled=true;button.textContent='Connecting…';
   try{
     if(key){await api('key',{provider:provider,key:key});$('guidedKey').value='';}
@@ -480,19 +453,17 @@ $('guidedConnect').addEventListener('click',()=>act(async()=>{
 }));
 $('guidedContinue').addEventListener('click',()=>act(async()=>{
   const provider=selectedProvider();
-  if(provider==='copilot'){await startCopilotTranslation();return;}
   const settings=structuredClone(state.project.settings);
   if(['anthropic','mistral'].includes(provider)&&!state.credentials[provider])throw new Error('Connect your API key first, or choose a chat option without an API key.');
   if(['anthropic','mistral'].includes(provider)&&!$('guidedModel').value)throw new Error('Choose a model from the list first.');
-  if(provider==='copilot'&&!state.copilot?.ready)throw new Error('Open Copilot, sign in yourself, and check the connection first.');
-  const model=['manual','copilot'].includes(provider)?'':$('guidedModel').value;
+  const model=provider==='manual'?'':$('guidedModel').value;
   const modelFor=stage=>stage==='back'&&['anthropic','mistral'].includes(provider)?($('guidedBackModel').value||model):model;
   const workspace=provider==='anthropic'?$('guidedWorkspace').value.trim():'';
-  const chatTool=provider==='copilot'?'Institutional Copilot':provider==='manual'?$('guidedManualTool').value:'';
+  const chatTool=provider==='manual'?$('guidedManualTool').value:'';
   const chatModel=provider==='manual'?$('guidedManualModel').value.trim():'';
   const changed=stages.some(stage=>{const c=settings.stages[stage];return c.provider!==provider||c.model!==modelFor(stage)||(c.workspace_id||'')!==workspace||(c.chat_tool||'')!==chatTool||(c.chat_model||'')!==chatModel;});
   if(changed&&state.project.segments.some(s=>s.forward)&&!confirm('Changing the tool clears existing translation drafts and reviews. Save a project copy first if you want to keep them. Continue?'))return;
-  stages.forEach(stage=>{const previous=settings.stages[stage];settings.stages[stage]={...previous,provider:provider,model:modelFor(stage),workspace_id:workspace,chat_tool:chatTool,chat_model:chatModel};if(previous.provider!==provider||provider==='copilot')Object.assign(settings.stages[stage],{temperature:null,top_p:null,random_seed:null,effort:''});});
+  stages.forEach(stage=>{const previous=settings.stages[stage];settings.stages[stage]={...previous,provider:provider,model:modelFor(stage),workspace_id:workspace,chat_tool:chatTool,chat_model:chatModel};if(previous.provider!==provider)Object.assign(settings.stages[stage],{temperature:null,top_p:null,random_seed:null,effort:''});});
   if(provider==='manual'){
     manualLabel=$('guidedManualTool').value+' / '+($('guidedManualModel').value.trim()||'model not reported');
     $('manualModel').value=manualLabel;
@@ -541,12 +512,11 @@ $('runStage').addEventListener('click',()=>act(async()=>{await api('run',{stage:
 $('runAll').addEventListener('click',()=>act(async()=>{
   const pending=stages.filter(stage=>state.project.segments.some(s=>!s[stage]));
   if(pending.some(stage=>state.project.settings.stages[stage].provider==='manual'))throw new Error('A later stage uses copy and paste. Use Run just this stage, or choose one tool for all stages in Step 2.');
-  if(pending.some(stage=>state.project.settings.stages[stage].provider==='copilot')){await startCopilotTranslation();return;}
   if(pending.some(stage=>['anthropic','mistral'].includes(state.project.settings.stages[stage].provider)&&(!state.credentials[state.project.settings.stages[stage].provider]||!state.project.settings.stages[stage].model))){go('connect');showError('Connect your API key and choose a model to start.');return;}
   await api('run',{stage:'all'});await refresh();if(complete()&&!state.job.running)go('review');
 }));
 $('runDemo').addEventListener('click',()=>act(async()=>{await api('run',{stage:'all',demo:true});await refresh(true);if(complete())go('review');}));
-$('stopJob').addEventListener('click',()=>act(async()=>{await api('stop',{});toast('Stopping. Completed batches are kept. A Copilot reply that is still being written will not be imported; an API request may take up to two minutes to return.');}));
+$('stopJob').addEventListener('click',()=>act(async()=>{await api('stop',{});toast('Stopping. Completed batches are kept. An API request may take up to two minutes to return.');}));
 $('saveSettings').addEventListener('click',()=>act(async()=>{
   if(state.project.segments.some(s=>s.forward)&&!confirm('Changes to models, languages or instructions clear completed outputs. Have you exported a copy if you need it?'))return;
   await api('settings',{settings:gatherSettings()});settingsDirty=false;await refresh(true);if(state.project.segments.length)go('workflow');toast('Settings saved.');
@@ -561,73 +531,6 @@ $('copyMethods').addEventListener('click',()=>act(async()=>{
   toast('Paragraph copied. Check it and fill in the [bracketed] items.');
 }));
 $('reset').addEventListener('click',()=>act(async()=>{if(!confirm('Clear the current transcript and API keys? Save your project first to keep it.'))return;await api('reset',{});$('sourceText').value='';$('projectTitle').value='Untitled interview';currentTask=null;manualLabel='';guidedModels={};await refresh(true);go('source');}));
-function copilotRunning(){return !!(state&&state.job.running&&['forward','back','reconcile'].includes(state.job.stage)&&state.project.settings.stages[state.job.stage]?.provider==='copilot');}
-function renderCopilotStatus(){
-  const c=state.copilot||{},waiting=!!c.connecting,phase=c.connection_phase||'idle',running=copilotRunning();
-  const failed=['error','timeout'].includes(phase);
-  const signedIn=c.ready||running||(c.open&&!['sign_in','browser'].includes(c.waiting_for)&&phase!=='opening'&&(c.page_host||'').includes('cloud.microsoft'));
-  const steps=[
-    ['WINDOW',c.open?'Copilot window open':'Opens a separate Chrome window',c.open||running?'done':waiting?'active':''],
-    ['SIGN-IN',signedIn?'Signed in to Copilot':c.waiting_for==='sign_in'?'Sign in now in the Copilot window':'Your work or school Microsoft account',signedIn?'done':(c.open&&waiting)?'active':''],
-    ['MESSAGE BOX',c.ready||running?'Found · ready':'Checked automatically',c.ready||running?'done':(signedIn&&waiting)?'active':''],
-    ['TRANSLATING',running?(state.job.message||'Running'):complete()?'All three stages done':'Starts automatically',running?'active':complete()?'done':'']];
-  if(failed){const i=steps.findIndex(x=>x[2]!=='done');if(i>=0)steps[i][2]='blocked';}
-  $('copilotMilestones').innerHTML=steps.map(x=>'<li class="'+x[2]+'"><b>'+x[0]+'</b>'+esc(x[1])+'</li>').join('');
-  const message=running?'Copilot: '+(c.step_detail||'working')+' ('+(c.step_elapsed||0)+' s). '+(state.job.message||''):(c.message||'Not connected yet.');
-  $('copilotConnection').textContent=message+(waiting?' · '+(c.connection_elapsed||0)+' s (stops waiting after '+Math.round((c.connection_timeout||600)/60)+' min)':'');
-  $('copilotConnection').dataset.phase=phase;
-  $('copilotConnection').classList.toggle('amber',!c.ready&&!running&&!failed);
-  $('copilotConnection').classList.toggle('error',failed);
-  $('openCopilot').disabled=state.job.running||waiting||copilotStarting;
-  $('openCopilot').textContent=waiting?'Waiting for Copilot…':'Connect & translate with Copilot';
-  $('checkCopilot').disabled=state.job.running||copilotStarting||waiting;
-  $('checkCopilot').classList.toggle('hidden',!failed&&!(state.job.error&&!state.job.running));
-  $('closeCopilot').disabled=state.job.running;
-  $('forgetCopilot').disabled=state.job.running;
-  $('cancelCopilotConnect').classList.toggle('hidden',!waiting&&!pendingCopilotStart);
-  $('cancelCopilotConnect').disabled=state.job.running;
-  const hint=waiting?(c.waiting_for==='sign_in'?'Switch to the Copilot window (a separate Chrome window) and sign in. This page will continue by itself.':'Checking the Copilot page… Translation starts automatically when it is ready.'):running?'Leave both windows open. You can keep working in other apps; Save progress stays available.':c.ready?'Connected. Nothing has been sent yet.':'';
-  $('copilotConnectHint').textContent=hint;$('copilotConnectHint').classList.toggle('hidden',!hint);
-}
-async function startCopilotTranslation(){
-  if(copilotStarting||state.job.running)return;
-  if(!state.project.segments.length)throw new Error('Prepare an interview before connecting Copilot.');
-  copilotStarting=true;
-  try{
-    const settings=structuredClone(state.project.settings);
-    const changed=stages.some(s=>settings.stages[s].provider!=='copilot');
-    if(changed&&state.project.segments.some(s=>s.forward)&&!confirm('Switching to Copilot clears existing drafts. Save a project copy first if needed. Continue?'))return;
-    if(changed){stages.forEach(s=>settings.stages[s]={...settings.stages[s],provider:'copilot',chat_tool:'Institutional Copilot',chat_model:'',model:'',workspace_id:'',temperature:null,top_p:null,random_seed:null,effort:''});await api('settings',{settings});await refresh(true);}
-    pendingCopilotStart={project_id:state.project.project_id,revision:state.project.revision};
-    $('copilotConnection').textContent='Opening Copilot and starting automatic connection checks…';
-    $('copilotConnectHint').textContent='Sign in in its separate window. Translation will start after the chat controls are detected.';
-    const c=await api('copilot/open',{});state.copilot=c;renderCopilotStatus();
-    await refresh();
-  }catch(e){pendingCopilotStart=null;state.copilot={...(state.copilot||{}),connecting:false,ready:false,connection_phase:'error',message:e.message};throw e;}
-  finally{copilotStarting=false;updateGuidedTool();renderCopilotStatus();}
-}
-async function advanceCopilotConnection(){
-  if(!pendingCopilotStart)return;
-  const intent=pendingCopilotStart,c=state.copilot||{};
-  const usesCopilot=stages.some(s=>state.project.settings.stages[s].provider==='copilot'&&state.project.segments.some(seg=>!seg[s]));
-  if(intent.project_id!==state.project.project_id||intent.revision!==state.project.revision||!usesCopilot){
-    pendingCopilotStart=null;await api('copilot/cancel',{});
-    showError(intent.project_id!==state.project.project_id||intent.revision!==state.project.revision?'The interview or its settings changed while Copilot was connecting, so nothing was sent. Click Resume with Copilot to translate the current version.':'No remaining stage is set to Copilot, so nothing was sent.');
-    return;
-  }
-  if(['error','timeout','cancelled'].includes(c.connection_phase)){
-    pendingCopilotStart=null;if(c.connection_phase!=='cancelled')showError(c.message);return;
-  }
-  if(!c.ready||state.job.running)return;
-  pendingCopilotStart=null;go('workflow');
-  await api('run',{stage:'all',expected_project_id:intent.project_id,expected_revision:intent.revision});await refresh();
-  if(complete()&&!state.job.running)go('review');
-}
-$('openCopilot').addEventListener('click',()=>act(startCopilotTranslation));
-$('checkCopilot').addEventListener('click',()=>act(startCopilotTranslation));
-$('cancelCopilotConnect').addEventListener('click',()=>act(async()=>{pendingCopilotStart=null;await api('copilot/cancel',{});await refresh();toast('Connection cancelled. Your project is still available.');}));
-$('closeCopilot').addEventListener('click',()=>act(async()=>{pendingCopilotStart=null;await api('copilot/close',{});await refresh();toast('Copilot window closed. Your sign-in is kept for next time.');}));
-$('forgetCopilot').addEventListener('click',()=>act(async()=>{if(!confirm('Close the Copilot window and remove the saved Copilot sign-in from this computer? Your Microsoft 365 chat history is not affected.'))return;pendingCopilotStart=null;await api('copilot/forget',{});await refresh();toast('Saved Copilot sign-in removed from this computer.');}));
 $('methodToggle').addEventListener('click',()=>{const expanded=$('processOverview').classList.toggle('expanded');$('methodToggle').setAttribute('aria-expanded',String(expanded));$('methodToggle').textContent=expanded?'Hide details':'How it works';});
 $('addTerm').addEventListener('click',()=>{const terms=collectTerms();terms.push({source:'',target:'',alternatives:[],notes:'',required:true});renderTermRows(terms);settingsDirty=true;});
 $('settings').addEventListener('change',event=>{const stage=stages.find(s=>event.target.id==='provider-'+s||event.target.id==='sampling-'+s);if(stage)updateSampling(stage);});
@@ -649,12 +552,11 @@ $('reviewForm').addEventListener('submit',async event=>{
   event.preventDefault();try{$('quickReviewer').value=$('reviewerName').value;await api('review',{id:reviewId,text:$('finalText').value,reviewer:$('reviewerName').value,note:$('reviewNote').value,uncertainty:$('retainUncertainty').checked});$('reviewDialog').close();await refresh(true);if(event.submitter&&event.submitter.id==='saveReviewNext')openNextReview();else toast('Human review saved.');}catch(e){$('dialogError').textContent=e.message;$('dialogError').classList.remove('hidden');}
 });
 $('editForm').addEventListener('submit',async event=>{
-  event.preventDefault();try{await api('edit',{id:editing.id,stage:editing.stage,text:$('editText').value,note:$('editNote').value});$('editDialog').close();await refresh(true);if(editing.stage==='source')$('sourceText').value=state.project.segments.map(s=>(s.speaker?s.speaker+': ':'')+s.source).join('\n\n');toast(editing.human?'Human translation saved. Click Resume to continue with Copilot.':'Correction saved. Dependent stages require a fresh run.');}catch(e){$('editError').textContent=e.message;$('editError').classList.remove('hidden');}
+  event.preventDefault();try{await api('edit',{id:editing.id,stage:editing.stage,text:$('editText').value,note:$('editNote').value});$('editDialog').close();await refresh(true);if(editing.stage==='source')$('sourceText').value=state.project.segments.map(s=>(s.speaker?s.speaker+': ':'')+s.source).join('\n\n');toast(editing.human?'Human translation saved.':'Correction saved. Dependent stages require a fresh run.');}catch(e){$('editError').textContent=e.message;$('editError').classList.remove('hidden');}
 });
 window.addEventListener('beforeunload',event=>{if(state&&state.project.segments.length){event.preventDefault();event.returnValue='Export your project before closing the application.';}});
 act(async()=>{await refresh(true);go('source');});
 setInterval(async()=>{
-  if(!state||pollInFlight||!(state.job.running||state.copilot?.connecting||pendingCopilotStart))return;
+  if(!state||pollInFlight||!state.job.running)return;
   pollInFlight=true;try{await refresh();}catch(e){showError(e.message);}finally{pollInFlight=false;}
 },1000);
-window.addEventListener('focus',()=>{if(state&&(state.copilot?.connecting||pendingCopilotStart)&&!pollInFlight)refresh().catch(e=>showError(e.message));});
