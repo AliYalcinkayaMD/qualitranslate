@@ -15,7 +15,7 @@ jobs:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
       R_KEEP_PKG_SOURCE: yes
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: r-lib/actions/setup-r@v2
         with:
           use-public-rspm: true
@@ -28,3 +28,12 @@ jobs:
         with:
           working-directory: r
           args: 'c("--no-manual", "--as-cran")'
+      - name: Show check problems as annotations
+        if: failure()
+        shell: bash
+        working-directory: r
+        run: |
+          for f in $(find check -name "00check.log" -o -name "*.Rout.fail" 2>/dev/null); do
+            msg=$(grep -n -B3 -A30 -E "ERROR|Error|Failure|FAIL|Warning" "$f" | head -c 8000 | tr -d '\r' | sed -e 's/%/%25/g' | awk 'BEGIN{ORS="%0A"} {print}')
+            echo "::error title=${f}::${msg}"
+          done
