@@ -13,6 +13,8 @@ It is published as two packages with the same features, prompts, interface and p
 | **Python** (PyPI) | `python3 -m pip install qualitranslate` | `qualitranslate` |
 | **R** (CRAN) | `install.packages("qualitranslate")` | `qualitranslate::run_app()` |
 
+The R package has been submitted to CRAN. Until it is accepted, install it from GitHub with `remotes::install_github("AliYalcinkayaMD/qualitranslate", subdir = "r")`.
+
 Both open a local workspace in your browser. A project saved in one can be continued in the other.
 
 ## Features

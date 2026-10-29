@@ -22,8 +22,8 @@ install.packages("qualitranslate")
 qualitranslate::run_app()
 ```
 
-Before the CRAN release, install from a downloaded source file instead:
-`install.packages("qualitranslate_1.5.1.tar.gz", repos = NULL, type = "source")`.
+Before the CRAN release, install from GitHub instead:
+`remotes::install_github("AliYalcinkayaMD/qualitranslate", subdir = "r")`.
 
 `run_app()` starts the app on `http://127.0.0.1:8765` (or the next free port), opens it in
 your web browser and keeps running until you press Escape (RStudio) or Control+C. Your
