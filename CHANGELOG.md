@@ -1,8 +1,12 @@
 # Changelog
 
+## 1.5.1
+
+First release on PyPI (Python) and CRAN (R). Documentation corrections; the app works as in 1.5.0.
+
 ## 1.5.0
 
-First release as packages: `qualitranslate` on PyPI (Python) and CRAN (R).
+First public release, as a Python package and an R package.
 
 - ChatGPT, Claude chat, Microsoft Copilot and Mistral's Le Chat are listed for copy and paste.
 - Python package with a `qualitranslate` command (`python -m qualitranslate` also works). No third-party dependencies.

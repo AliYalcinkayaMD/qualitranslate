@@ -25,7 +25,7 @@ from .document_tools import DocumentError, read_document as _read_document, scan
 from .quality import severity, terminology_issues
 from .privacy import identifier_scan, identifier_summary
 
-APP_VERSION = "1.5.0"
+APP_VERSION = "1.5.1"
 STAGES = ("forward", "back", "reconcile")
 STAGE_LABELS = {"forward": "Forward translation", "back": "Blind back-translation", "reconcile": "Reconciliation"}
 MAX_TEXT = 1_500_000

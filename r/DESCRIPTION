@@ -1,7 +1,7 @@
 Package: qualitranslate
 Type: Package
 Title: Translation Workflow for Qualitative Interview Transcripts
-Version: 1.5.0
+Version: 1.5.1
 Authors@R: 
     person("Ali", "Yalcinkaya", email = "aliyalcink@gmail.com",
            role = c("aut", "cre", "cph"))

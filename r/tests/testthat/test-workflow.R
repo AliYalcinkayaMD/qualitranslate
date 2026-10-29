@@ -405,7 +405,7 @@ test_that("the HTTP server enforces its security rules and serves the demo", {
   expect_identical(http_request(srv$url, headers = list(Host = "evil.example"), loop_ws = ws)$status, 403L)
   expect_identical(http_request(paste0(srv$url, "/assets/../core.py"), loop_ws = ws)$status, 404L)
   expect_identical(http_request(paste0(srv$url, "/assets/app.js"), loop_ws = ws)$status, 200L)
-  expect_identical(http_request(paste0(srv$url, "/health"), loop_ws = ws)$json$version, "1.5.0")
+  expect_identical(http_request(paste0(srv$url, "/health"), loop_ws = ws)$json$version, "1.5.1")
   expect_identical(http_request(paste0(srv$url, "/api/demo"), method = "OPTIONS", loop_ws = ws)$status, 403L)
   # Content type, size and format checks.
   wrong_type <- api(srv, "demo", qt("empty_obj")(), extra = list("Content-Type" = "text/plain"))

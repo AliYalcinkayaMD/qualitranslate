@@ -1,6 +1,6 @@
 # Shared constants, error conditions and small helpers that mirror Python behaviour.
 
-APP_VERSION <- "1.5.0"
+APP_VERSION <- "1.5.1"
 STAGES <- c("forward", "back", "reconcile")
 STAGE_LABELS <- c(forward = "Forward translation", back = "Blind back-translation",
                   reconcile = "Reconciliation")

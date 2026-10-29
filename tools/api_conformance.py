@@ -74,7 +74,7 @@ def main(argv):
     token = re.search(r'name="csrf-token" content="([^"]+)"', html).group(1)
     check(status == 200 and len(token) >= 32, "index page carries a session token")
     check("default-src 'self'" in headers.get("Content-Security-Policy", "") and headers.get("Cache-Control") == "no-store", "security headers on the page")
-    check(request(base, "/health")[1].get("version") == "1.5.0", "health reports version 1.5.0")
+    check(request(base, "/health")[1].get("version") == "1.5.1", "health reports version 1.5.1")
     check(request(base, "/api/state")[0] in (403, 404), "state needs the token")
     check(request(base, "/api/demo", {}, token, {"Origin": "https://evil.example"})[0] == 403, "foreign origin is rejected")
     check(request(base, "/api/state", token=token, headers={"Host": "evil.example"})[0] in (403, 404), "foreign Host header is rejected")

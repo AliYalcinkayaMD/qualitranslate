@@ -41,7 +41,7 @@ Zenodo then archives every GitHub release and gives it a DOI. It reads the title
 ## 4. Make the release
 
 1. On GitHub: *Releases → Draft a new release*.
-2. *Choose a tag*: type `v1.5.0` and create it. Title: `QualiTranslate 1.5.0`. Paste the 1.5.0 section of `CHANGELOG.md` as the description.
+2. *Choose a tag*: type the version tag (for example `v1.5.1`) and create it. Title: `QualiTranslate 1.5.1`. Paste that version's section of `CHANGELOG.md` as the description.
 3. Click **Publish release**.
 4. In *Actions*, the *Publish to PyPI* run uploads the package (approve it if you added a reviewer). After it finishes, `python3 -m pip install qualitranslate` works for everyone.
 5. A few minutes later Zenodo shows the archived release with its DOI. Add the DOI to `CITATION.cff` (`doi: 10.5281/zenodo.…`) and, if you like, the DOI badge from Zenodo to `README.md`. Commit and push.
@@ -61,9 +61,9 @@ CRAN checks every package by hand. Do this after the GitHub release, using the s
    devtools::check_win_devel("r")
    devtools::check_mac_release("r")
    ```
-3. Build the file to upload: `devtools::build("r")` creates `qualitranslate_1.5.0.tar.gz`.
+3. Build the file to upload: `devtools::build("r")` creates `qualitranslate_1.5.1.tar.gz`.
 4. Submit at [cran.r-project.org/submit.html](https://cran.r-project.org/submit.html): upload the `.tar.gz`, paste the contents of `r/cran-comments.md` as the comment, and confirm the link CRAN sends by e-mail.
-5. CRAN usually replies within days. First submissions often get small requests (for example wording in the Description, `\value` sections in help pages, or examples). Make the changes, increase nothing but what they ask, and resubmit with a short reply. If the version changes (for example to 1.5.1), change it everywhere listed below and make a matching GitHub release.
+5. CRAN usually replies within days. First submissions often get small requests (for example wording in the Description, `\value` sections in help pages, or examples). Make the changes, increase nothing but what they ask, and resubmit with a short reply. If the version changes (for example to 1.5.2), change it everywhere listed below and make a matching GitHub release.
 
 ## Later releases
 
